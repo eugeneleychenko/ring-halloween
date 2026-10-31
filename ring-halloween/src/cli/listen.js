@@ -4,8 +4,9 @@ import { measurementPath } from '../config.js'
 import { appendCsvRow } from '../csv.js'
 import { EVENT_COLUMNS, eventRow, watchEvents } from '../events.js'
 import { onTrigger } from '../pipeline.js'
+import { stubComment, stubSnapshot, stubSynthesize } from '../stubs.js'
 import { connectRing, describeCamera, pickDoorbell, printCamera } from '../ring.js'
-import { getFreshSnapshot, saveSnapshot, snapshotRow, SNAPSHOT_COLUMNS } from '../snapshot.js'
+import { getFreshSnapshot, recordSnapshot } from '../snapshot.js'
 
 const TRIAL_TIMEOUT_MS = 30000
 const TRIAL_COLUMNS = ['marked_at', 'marked_ms', 'result', 'ding_id', 'event_type', 'mark_to_event_ms']
@@ -15,6 +16,8 @@ const { values: args } = parseArgs({
   options: {
     snapshot: { type: 'boolean', default: false },
     respond: { type: 'boolean', default: false },
+    // Real events through the real gate, with a pretend 5 s clip: no sound, no paid APIs.
+    'cooldown-test': { type: 'boolean', default: false },
     routes: { type: 'string', default: 'uuid,keyframe,forced' },
   },
 })
@@ -52,20 +55,25 @@ const stop = watchEvents(camera, {
   async onEvent(event) {
     const row = eventRow(event)
     appendCsvRow(eventsCsv, EVENT_COLUMNS, row)
-    console.log(`[event] ${event.type} ${event.id} (${event.detectionType ?? event.subtype ?? 'n/a'}): arrived ${row.received_minus_triggered_ms ?? '?'} ms after triggered_at, snapshot UUID ${event.snapshotUuid ? 'yes' : 'no'}`)
+    console.log(`[event] ${event.type} ${event.id} (${event.detectionType ?? event.subtype ?? 'n/a'}): arrived ${row.delay_ms === '' ? '?' : row.delay_ms} ms after triggered_at, snapshot UUID ${event.snapshotUuid ? 'yes' : 'no'}`)
     if (event.e2eeEnabled) console.log('[event] WARNING: End-to-End Encryption is on. Talk and live view will not work until it is off.')
     resolveTrial(event)
-    if (args.respond) {
+    if (args['cooldown-test']) {
+      const result = await onTrigger(event, {
+        camera, output: 'bluetooth', snapshot: stubSnapshot, storeSnapshot: null, comment: stubComment, speak: stubSynthesize,
+        openSession: () => null, play: async () => { await new Promise((r) => setTimeout(r, 5000)); return { firstAudioAt: Date.now() } },
+      })
+      console.log(`[cooldown-test] ${event.id}: ${result.status}${result.row?.error ? ` (${result.row.error})` : ''}`)
+    } else if (args.respond) {
       const result = await onTrigger(event, { camera })
       console.log(`[pipeline] ${result.status}`)
     } else if (args.snapshot) {
       try {
         const image = await getFreshSnapshot(event, { camera, routes: args.routes.split(',') })
-        const file = saveSnapshot(event, image)
-        appendCsvRow(measurementPath('snapshots.csv'), SNAPSHOT_COLUMNS, snapshotRow(event, image, { file }))
+        const file = recordSnapshot(event, image)
         console.log(`[snapshot] ${image.source}: ${image.fetchMs} ms, taken ${image.takenAt - event.eventAt} ms after the event, ${file}`)
       } catch (error) {
-        appendCsvRow(measurementPath('snapshots.csv'), SNAPSHOT_COLUMNS, snapshotRow(event, error))
+        recordSnapshot(event, error)
         console.log(`[snapshot] FAILED: ${error.message}`)
       }
     }

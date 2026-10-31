@@ -1,6 +1,6 @@
 import { config, measurementPath } from '../config.js'
 import { createTriggerGate, onTrigger } from '../pipeline.js'
-import { fakeEvent, stubPlayAudio, stubSnapshot } from '../stubs.js'
+import { fakeEvent, stubComment, stubPlayAudio, stubSnapshot, stubSynthesize } from '../stubs.js'
 import { printStatus } from '../status.js'
 
 printStatus()
@@ -11,6 +11,8 @@ const result = await onTrigger(event, {
   gate: createTriggerGate({ cooldownMs: 0 }),
   snapshot: stubSnapshot,
   storeSnapshot: null,
+  comment: stubComment,
+  speak: stubSynthesize,
   play: stubPlayAudio,
   openSession: () => null,
 })

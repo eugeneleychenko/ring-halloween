@@ -1,0 +1,17 @@
+# Words and phrases Gemini's comment must never contain (personality.md 2i and section 4).
+# Format: topic | word or phrase. One per line, case-insensitive, whole words only.
+# Deliberately broad: a false alarm costs one stock line, a miss says something unkind to a child.
+body | body, bodies, figure, physique, fat, fatty, skinny, thin, chubby, plump, slim, overweight, underweight, weight, heavy, tall, short, height, size, tiny, big guy, belly, tummy
+age | age, aged, old, older, elderly, young, younger, youth, teen, teens, teenager, toddler, baby, babies, child, children, kid, kids, little, years old, kindergarten, school, grade, preschool
+gender | boy, boys, girl, girls, woman, women, lady, ladies, gentleman, guy, guys, male, female, he, she, him, her, his, hers
+race | race, racial, ethnic, ethnicity, asian, african, black person, black people, white person, white people, latino, latina, hispanic, caucasian, mexican, indian, arab, native american
+skin | skin, complexion, pale, tanned, freckle, freckles
+hair | hair, hairs, hairy, haired, bald, blond, blonde, brunette, redhead, beard, moustache, mustache
+face | face, faces, eyes, teeth, tooth, braces, glasses, smile
+looks | cute, pretty, beautiful, handsome, gorgeous, attractive, unattractive, ugly, sexy, hot, stunning, good looking, good-looking, adorable, lovely
+identity | you look like, looks like, you remind, reminds me of, you must be, is that you, aren't you, i know you, i know who you are, your name, recognize, recognise
+menace | i see you, see you, watch, watching, watched, recording, recorded, camera, you can't hide, can't hide, i've been waiting, been waiting for you, come closer, closer, come inside, inside, follow you, chase, catch you, get you, take you
+real scares | blood, bloody, death, dead, die, dies, dying, kill, killed, eat you, eat people, eating people, eaten, hurt, under the bed, alone in the dark, alone
+judging | did your mom, your mom, your dad, your mother, your father, homemade, home-made, store-bought, store bought, wrong
+candy | allergy, allergies, allergic, how much candy, too much candy, eat your, eat it, eat that
+off limits | god, jesus, church, religion, religious, politics, president, democrat, republican, disney, marvel, walmart, target, amazon

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Type | HITL (needs Eugene present) |
-| Status | ready |
+| Status | done |
 | Assignee | ring-worker |
 | Labels | needs-triage |
 
@@ -19,11 +19,11 @@ Ring credentials: Eugene's Ring login is stored in 1Password; the item link is i
 
 ## Acceptance criteria
 
-- [ ] `npm run auth` succeeds and writes `ring-token.json`; re-running does not require 2FA again
+- [x] `npm run auth` succeeds and writes `ring-token.json`; re-running does not require 2FA again
 - [ ] Token is re-saved on every `onRefreshTokenUpdated`; a restart after an hour still receives events (verified in issue 3)
-- [ ] `controlCenterDisplayName` is set to `ring-halloween-mac` so the client is identifiable in Ring Control Center
-- [ ] `npm run devices` prints the doorbell's `kind`, model name, power mode, and flags for `live_view_disabled` and E2EE
-- [ ] The doorbell model and power type are reported to the chief of staff and recorded in `measurements/device.json`
+- [x] `controlCenterDisplayName` is set to `ring-halloween-mac` so the client is identifiable in Ring Control Center
+- [x] `npm run devices` prints the doorbell's `kind`, model name, power mode, and flags for `live_view_disabled` and E2EE
+- [x] The doorbell model and power type are reported to the chief of staff and recorded in `measurements/device.json`
 
 ## Blocked by
 
@@ -31,4 +31,4 @@ Ring credentials: Eugene's Ring login is stored in 1Password; the item link is i
 
 ## Validation log
 
-_Chief of staff fills this in. Status moves ready -> in-progress -> validate -> done._
+**2026-10-31, ring-CoS: DONE.** Eugene ran `npm run auth` in Terminal.app (the `!` prefix in Claude Code has no TTY; README updated to say so). `ring-token.json` exists, mode 600, 1274 bytes. `npm run devices` ran without prompting (token path works) and wrote `measurements/device.json`. Front Door: model "Doorbell Pro", kind `lpd_v2` (Ring Video Doorbell Pro, 1st gen), wired, no battery, canTakeSnapshotWhileRecording=true, live_view_disabled=false, motion on, E2EE off (encryption_group id null), online. Three other cams on the account (Garage osprey_floodlight, Side and Garden floodlight_v2) are not used. Hourly token-refresh persistence is left open for #03 to prove over a long run.

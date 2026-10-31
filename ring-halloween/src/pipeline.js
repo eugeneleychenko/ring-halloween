@@ -1,8 +1,9 @@
 import { config, measurementPath } from './config.js'
 import { appendCsvRow } from './csv.js'
 import { endActiveSession, getOrOpenSession } from './live-session.js'
-import { getFreshSnapshot, saveSnapshot } from './snapshot.js'
+import { getFreshSnapshot, recordSnapshot } from './snapshot.js'
 import { playAudio } from './audio/index.js'
+import { pickClip as pickBankClip } from './clip-bank.js'
 import { generateComment } from './gemini.js'
 import { synthesize } from './tts.js'
 
@@ -44,10 +45,13 @@ export async function onTrigger(event, {
   camera = event.camera,
   gate = defaultGate,
   snapshot = getFreshSnapshot,
-  storeSnapshot = saveSnapshot,
+  storeSnapshot = recordSnapshot,
   comment = generateComment,
   speak = synthesize,
   play = playAudio,
+  pickClip = pickBankClip,
+  skipBehavior = config.skipBehavior,
+  signOff = config.signOff,
   openSession = output === 'doorbell' ? () => getOrOpenSession(camera, { t0: event.receivedAt }) : () => null,
   log = console.log,
 } = {}) {
@@ -79,12 +83,17 @@ export async function onTrigger(event, {
       storeSnapshot?.(event, image)
     } catch (error) {
       problems.push(`snapshot: ${error.message}`)
+      storeSnapshot?.(event, error)
     }
     const geminiStarted = Date.now()
     const { decision, comment: text } = await comment(image?.jpegBuffer ?? null)
     row.gemini_ms = Date.now() - geminiStarted
     row.gemini_decision = decision
     if (decision === 'SKIP') {
+      if (skipBehavior === 'line') {
+        const clip = pickClip('skip')
+        if (clip) await play(clip, { output, camera })
+      }
       status = 'skipped'
       row.success = true
       return { status, row }
@@ -94,6 +103,10 @@ export async function onTrigger(event, {
     row.tts_ms = Date.now() - ttsStarted
     const played = await play(wavPath, { output, camera })
     row.first_audio_at = iso(played.firstAudioAt)
+    if (signOff) {
+      const clip = pickClip('signoff')
+      if (clip) await play(clip, { output, camera })
+    }
     row.success = true
     status = 'played'
     return { status, row, comment: text }

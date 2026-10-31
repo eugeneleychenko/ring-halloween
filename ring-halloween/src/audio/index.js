@@ -1,6 +1,16 @@
+import { createBluetoothOutput } from './bluetooth.js'
 import { endActiveSession, getActiveSession, getOrOpenSession } from '../live-session.js'
 
 const outputs = new Map()
+let bluetooth = null
+
+// Starts the speaker's keep-alive and health check, and makes it available to playAudio.
+export function startBluetooth(options) {
+  bluetooth = createBluetoothOutput(options)
+  registerOutput('bluetooth', (source) => bluetooth.play(source))
+  bluetooth.start()
+  return bluetooth
+}
 
 // The Bluetooth worker plugs in with registerOutput('bluetooth', async (source, opts) => ...).
 export function registerOutput(name, player) {

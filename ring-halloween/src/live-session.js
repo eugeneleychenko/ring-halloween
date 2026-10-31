@@ -1,3 +1,4 @@
+import { monitorEventLoopDelay } from 'node:perf_hooks'
 import { config } from './config.js'
 import { RtpPlayer } from './audio/rtp-player.js'
 
@@ -38,6 +39,9 @@ export class DoorbellSession {
     this.endReason = null
     this.ended = false
     this.endedPromise = new Promise((resolve) => { this.resolveEnded = resolve })
+    this.loopDelay = monitorEventLoopDelay({ resolution: 5 })
+    this.loopDelay.enable()
+    this.audioReports = []
     this.ready = this.#open()
     this.ready.catch(() => {})
   }
@@ -69,6 +73,11 @@ export class DoorbellSession {
         this.codec = codecs.audio
         this.videoCodec = codecs.video
         resolve(sdp)
+        // Without video the doorbell's uplink and this Mac's event loop both have less to do.
+        if (this.cfg.doorbellVideoOff) {
+          connection.sendSessionMessage('stream_options', { audio_enabled: true, video_enabled: false })
+        }
+        this.#watchAudioReports(connection)
       }))
     })
     const cameraConnected = new Promise((resolve) => {
@@ -102,7 +111,6 @@ export class DoorbellSession {
         sendRtp: (rtp) => call.sendAudioPacket(rtp),
         usingOpus,
         ffmpegPath: this.cfg.ffmpegPath,
-        leadingSilenceMs: this.cfg.leadingSilenceMs,
         trailingSilenceMs: this.cfg.trailingSilenceMs,
         onFatal: () => this.end('encoder_failed'),
       })
@@ -126,21 +134,50 @@ export class DoorbellSession {
     return this
   }
 
+  // Ring's server reports the loss and jitter it sees on our return audio.
+  #watchAudioReports(connection) {
+    try {
+      const sender = connection.pc?.pc?.getSenders?.()[0]
+      const subscription = sender?.onRtcp?.subscribe((packet) => {
+        for (const report of packet.reports ?? []) {
+          this.audioReports.push({ ms: this.now() - this.t0, fractionLost: report.fractionLost, packetsLost: report.packetsLost, jitter: report.jitter })
+        }
+      })
+      if (subscription) this.subscriptions.push(subscription)
+    } catch {
+      // Diagnostics only: never let this affect a call.
+    }
+  }
+
+  diagnostics() {
+    const last = this.audioReports.at(-1) ?? null
+    return {
+      send: this.player?.timingStats() ?? null,
+      loopDelayP99Ms: Math.round(this.loopDelay.percentile(99) / 1e6),
+      loopDelayMaxMs: Math.round(this.loopDelay.max / 1e6),
+      reports: this.audioReports.length,
+      lastReport: last,
+      maxFractionLost: this.audioReports.length ? Math.max(...this.audioReports.map((r) => r.fractionLost)) : null,
+      maxJitter: this.audioReports.length ? Math.max(...this.audioReports.map((r) => r.jitter)) : null,
+    }
+  }
+
   whenReady() {
     return this.ready
   }
 
-  async play(source) {
+  async play(source, options) {
     await this.ready
-    return this.player.play(source)
+    return this.player.play(source, options)
   }
 
   #cleanup() {
     if (this.ended) return
     this.ended = true
     clearTimeout(this.maxTimer)
+    this.loopDelay.disable()
     this.player?.stop()
-    for (const subscription of this.subscriptions ?? []) subscription.unsubscribe()
+    for (const subscription of this.subscriptions ?? []) (subscription.unsubscribe ?? subscription.unSubscribe)?.call(subscription)
     this.resolveEnded()
     if (active === this) active = null
   }

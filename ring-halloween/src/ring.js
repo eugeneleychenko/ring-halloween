@@ -86,14 +86,21 @@ export function knownRisks(kind, settings = {}) {
   return risks
 }
 
+function e2eeText(fields) {
+  const entries = Object.entries(fields)
+  if (!entries.length) return 'not in the device list. Check in the Ring app: Control Center > Video Encryption must be off. Each event also reports it.'
+  const on = entries.some(([, value]) => value === true || value === 'enabled')
+  return `${on ? 'ON: turn it off in the Ring app, talk will not work' : 'off'} (${JSON.stringify(fields)})`
+}
+
 export function printCamera(info, log = console.log) {
   log(`  ${info.name}  (id ${info.id})`)
   log(`    model:        ${info.model}`)
   log(`    kind:         ${info.kind}`)
   log(`    power:        ${info.operatingOnBattery ? 'battery' : 'wired'} (power_mode=${info.powerMode ?? 'n/a'}, battery=${info.batteryLevel ?? 'n/a'})`)
-  log(`    live view:    ${info.liveViewDisabled ? 'DISABLED by a Ring Mode' : 'allowed'}`)
   log(`    motion on:    ${info.motionDetectionEnabled ?? 'unknown'}`)
   log(`    offline:      ${info.isOffline}`)
-  if (Object.keys(info.encryptionFields).length) log(`    encryption:   ${JSON.stringify(info.encryptionFields)}`)
+  log(`    live view Mode: ${info.liveViewDisabled ? 'BLOCKED: change this Ring Mode in the app (live_view_disabled=true)' : 'ok (live_view_disabled=false)'}`)
+  log(`    E2EE:         ${e2eeText(info.encryptionFields)}`)
   for (const risk of info.knownRisks) log(`    WARNING:      ${risk}`)
 }

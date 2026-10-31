@@ -88,28 +88,28 @@ export function watchEvents(camera, handlers) {
 }
 
 export const EVENT_COLUMNS = [
-  'logged_at', 'ding_id', 'type', 'subtype', 'detection_type', 'is_duplicate', 'has_snapshot_uuid',
-  'received_ms', 'triggered_at_ms', 'sent_at_ms', 'eventito_ms',
-  'received_minus_triggered_ms', 'sent_minus_triggered_ms', 'received_minus_sent_ms', 'e2ee_enabled',
+  'received_at', 'triggered_at', 'delay_ms', 'category', 'ding_id', 'has_snapshot_uuid',
+  'is_duplicate', 'eventito_at', 'sent_at', 'sent_minus_triggered_ms', 'received_minus_sent_ms',
+  'subtype', 'detection_type', 'e2ee_enabled',
 ]
 
 export function eventRow(event, { isDuplicate = false, receivedAt = event.receivedAt, snapshotUuid = event.snapshotUuid } = {}) {
-  const delta = (a, b) => (a !== null && b !== null ? a - b : null)
+  const delta = (a, b) => (a !== null && b !== null ? a - b : '')
+  const iso = (ms) => (ms === null ? '' : new Date(ms).toISOString())
   return {
-    logged_at: new Date(receivedAt).toISOString(),
+    received_at: iso(receivedAt),
+    triggered_at: iso(event.triggeredAt),
+    delay_ms: delta(receivedAt, event.triggeredAt),
+    category: event.type,
     ding_id: event.id,
-    type: event.type,
-    subtype: event.subtype,
-    detection_type: event.detectionType,
-    is_duplicate: isDuplicate,
     has_snapshot_uuid: Boolean(snapshotUuid),
-    received_ms: receivedAt,
-    triggered_at_ms: event.triggeredAt,
-    sent_at_ms: event.sentAt,
-    eventito_ms: event.eventitoAt,
-    received_minus_triggered_ms: delta(receivedAt, event.triggeredAt),
+    is_duplicate: isDuplicate,
+    eventito_at: iso(event.eventitoAt),
+    sent_at: iso(event.sentAt),
     sent_minus_triggered_ms: delta(event.sentAt, event.triggeredAt),
     received_minus_sent_ms: delta(receivedAt, event.sentAt),
+    subtype: event.subtype,
+    detection_type: event.detectionType,
     e2ee_enabled: event.e2eeEnabled,
   }
 }

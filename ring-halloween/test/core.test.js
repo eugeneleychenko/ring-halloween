@@ -167,10 +167,10 @@ test('onTrigger logs suppressed, SKIP and failure runs', async () => {
 })
 
 test('the probe never reports GO unless a person heard it', () => {
-  const rows = Array.from({ length: 5 }, () => ({ technical_ok: 'true', speaker_ready_ms: '3000', heard: '' }))
+  const rows = Array.from({ length: 5 }, () => ({ success: 'true', session_open_ms: '3000', audible_2m: '' }))
   assert.equal(summarizeProbe(rows).verdict, 'UNCONFIRMED')
-  assert.equal(summarizeProbe(rows.map((r) => ({ ...r, heard: 'y' }))).verdict, 'GO')
-  assert.equal(summarizeProbe(rows.map((r) => ({ ...r, heard: 'n' }))).verdict, 'NO-GO')
-  assert.equal(summarizeProbe(rows.map((r) => ({ ...r, technical_ok: 'false' }))).verdict, 'NO-GO')
-  assert.equal(summarizeProbe(rows.map((r) => ({ ...r, heard: 'y', speaker_ready_ms: '9000' }))).verdict, 'CONDITIONAL')
+  assert.equal(summarizeProbe(rows.map((r) => ({ ...r, audible_2m: 'y' }))).verdict, 'GO')
+  assert.equal(summarizeProbe(rows.map((r) => ({ ...r, audible_2m: 'n' }))).verdict, 'NO-GO')
+  assert.equal(summarizeProbe(rows.map((r) => ({ ...r, success: 'false' }))).verdict, 'NO-GO')
+  assert.equal(summarizeProbe(rows.map((r) => ({ ...r, audible_2m: 'y', session_open_ms: '9000' }))).verdict, 'CONDITIONAL')
 })

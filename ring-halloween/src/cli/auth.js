@@ -1,6 +1,7 @@
 import { RingRestClient } from 'ring-client-api/rest-client'
 import { config } from '../config.js'
 import { ask, askHidden } from '../prompt.js'
+import { showDevices } from './devices.js'
 import { acquireLock, loadToken, saveToken, tokenPath } from '../token-store.js'
 
 // The library's own login flow leaves these rejected while it asks for the 2FA code.
@@ -12,12 +13,22 @@ async function main() {
   if (!process.stdin.isTTY) {
     throw new Error('`npm run auth` needs a real terminal so you can type your password and 2FA code.')
   }
-  const release = acquireLock()
-  if (loadToken()) {
-    const answer = await ask('A Ring token is already saved. Replace it? (y/N) ')
-    if (answer.toLowerCase() !== 'y') return
+  if (loadToken() && !process.argv.includes('--force')) {
+    console.log('Already signed in, so no password or code is needed. Checking the saved token...\n')
+    await showDevices()
+    return
   }
-  console.log('Sign in to Ring. Your email and password are used once and are not saved.\n')
+  const release = acquireLock()
+  console.log(`Sign in to Ring. Here is what happens:
+  1. Type your Ring email and press Return.
+  2. Type your password and press Return. Nothing will show as you type. That is on purpose.
+  3. Ring sends you a 2FA code. Type it and press Return.
+  4. You will see "Signed in", then a list of your Ring devices.
+
+Your email and password are used once and are not saved. Only a sign-in token is saved,
+in ring-token.json, which only your Mac user can read. In the Ring app, this Mac will
+appear under Control Center as "${config.controlCenterDisplayName}".
+`)
   const email = await ask('Ring email: ')
   const password = await askHidden('Ring password (hidden): ')
   const client = new RingRestClient({ email, password, controlCenterDisplayName: config.controlCenterDisplayName })
@@ -43,7 +54,6 @@ async function main() {
   console.log(`\nSigned in. Token saved to ${tokenPath()} (only your user can read it).\n`)
 
   // Lists devices through the normal path, which rotates and re-saves the token.
-  const { showDevices } = await import('./devices.js')
   await showDevices()
 }
 

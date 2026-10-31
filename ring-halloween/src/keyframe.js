@@ -14,7 +14,7 @@ export function videoOnlySdp(sdp, port) {
  * call.startTranscoding(): that one ends the whole call when ffmpeg exits, which
  * would hang up the speaker the moment one frame had been captured.
  */
-export async function grabKeyframe(call, { ffmpegPath = config.ffmpegPath, timeoutMs = config.keyframeTimeoutMs, now = Date.now } = {}) {
+export async function grabKeyframe(call, { ffmpegPath = config.ffmpegPath, timeoutMs = config.keyframeTimeoutMs, now = Date.now, signal } = {}) {
   const sdp = await firstValueFrom(call.connection.onCallAnswered)
   const port = await call.reservePort(1)
   const socket = dgram.createSocket('udp4')
@@ -46,6 +46,7 @@ export async function grabKeyframe(call, { ffmpegPath = config.ffmpegPath, timeo
         }
       })
       timer = setTimeout(() => reject(new Error(`No keyframe within ${timeoutMs} ms`)), timeoutMs)
+      signal?.addEventListener('abort', () => reject(new Error('Not needed: another route won')), { once: true })
       subscription = call.onVideoRtp.subscribe((rtp) => {
         socket.send(rtp.serialize(), port, '127.0.0.1', () => {})
       })

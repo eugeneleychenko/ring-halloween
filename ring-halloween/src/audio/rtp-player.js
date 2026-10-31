@@ -10,11 +10,13 @@ const FRAME_MS = 20
 const FRAME_BYTES = FRAME_MS * BYTES_PER_MS
 const LEAD_MS = 40
 const MAX_CATCH_UP_MS = 200
+const SEND_BUFFER_PACKETS = 4
+const SEND_RESYNC_MS = 100
 const SILENCE_FRAME = Buffer.alloc(FRAME_BYTES)
 
 const silence = (ms) => Buffer.alloc(Math.round(ms * BYTES_PER_MS / 2) * 2)
 
-export function encoderArgs(usingOpus, port) {
+export function encoderArgs(usingOpus, port, { opusBitrate = null } = {}) {
   return [
     '-hide_banner', '-loglevel', 'error',
     // ffmpeg treats -analyzeduration 0 as "use the 5 s default", which holds back the first
@@ -22,7 +24,7 @@ export function encoderArgs(usingOpus, port) {
     '-fflags', '+nobuffer', '-probesize', '32', '-analyzeduration', '1000',
     '-f', 's16le', '-ar', String(SAMPLE_RATE), '-ac', '1', '-i', 'pipe:0',
     ...(usingOpus
-      ? ['-acodec', 'libopus', '-ac', '2', '-ar', '48k', '-frame_duration', String(FRAME_MS)]
+      ? ['-acodec', 'libopus', '-ac', '2', '-ar', '48k', '-frame_duration', String(FRAME_MS), ...(opusBitrate ? ['-b:a', opusBitrate] : [])]
       // 160 samples is the standard 20 ms PCMU packet; ffmpeg would otherwise send 128 ms ones.
       : ['-af', 'aresample=8000,asetnsamples=n=160:p=0', '-acodec', 'pcm_mulaw', '-ac', '1', '-ar', '8k']),
     '-flags', '+global_header',
@@ -42,12 +44,18 @@ export class RtpPlayer {
     sendRtp,
     usingOpus,
     ffmpegPath = config.ffmpegPath,
-    leadingSilenceMs = config.leadingSilenceMs,
+    // Clips carry their own lead-in, so a player adding more would double it.
+    leadingSilenceMs = 0,
     trailingSilenceMs = config.trailingSilenceMs,
     onFatal = () => {},
     now = Date.now,
+    opusBitrate = config.opusBitrate,
+    // ffmpeg hands over packets in uneven clumps; this re-spaces them on a 20 ms clock.
+    pacedSend = config.pacedSend,
   }) {
-    Object.assign(this, { sendRtp, usingOpus, ffmpegPath, leadingSilenceMs, trailingSilenceMs, onFatal, now })
+    Object.assign(this, { sendRtp, usingOpus, ffmpegPath, leadingSilenceMs, trailingSilenceMs, onFatal, now, opusBitrate, pacedSend })
+    this.sendQueue = []
+    this.sendGaps = []
     this.queue = []
     this.pending = Buffer.alloc(0)
     this.stats = { rtpPackets: 0, firstRtpAt: null, underruns: 0, framesWritten: 0, stderr: '' }
@@ -62,7 +70,7 @@ export class RtpPlayer {
       this.socket.bind(0, '127.0.0.1', resolve)
     })
     const { port } = this.socket.address()
-    this.encoder = spawn(this.ffmpegPath, encoderArgs(this.usingOpus, port), {
+    this.encoder = spawn(this.ffmpegPath, encoderArgs(this.usingOpus, port, { opusBitrate: this.opusBitrate }), {
       stdio: ['pipe', 'ignore', 'pipe'],
     })
     this.encoder.stderr.on('data', (chunk) => {
@@ -78,6 +86,7 @@ export class RtpPlayer {
     this.startedAt = this.now()
     this.bytesWritten = 0
     this.pacer = setInterval(() => this.#tick(), 10)
+    if (this.pacedSend) this.sender = setInterval(() => this.#drainSendQueue(), 4)
     this.#tick()
   }
 
@@ -85,18 +94,19 @@ export class RtpPlayer {
    * Queue a clip. It plays once every clip queued before it has finished, with no
    * gap in the RTP stream. `source` is a file path or a readable stream of anything
    * ffmpeg can decode, and a stream can start playing before it has finished arriving.
+   * Pass leadingSilenceMs for a source with no lead-in of its own, such as a live stream.
    */
-  play(source) {
+  play(source, { leadingSilenceMs = this.leadingSilenceMs } = {}) {
     if (this.stopped) return Promise.reject(new Error('Player is stopped'))
     return new Promise((resolve, reject) => {
       const clip = {
-        chunks: [silence(this.leadingSilenceMs)],
+        chunks: [silence(leadingSilenceMs)],
         decoded: false,
         audioBytes: 0,
         firstAudioAt: null,
         startedAt: null,
         rtpPackets: 0,
-        leadingBytes: silence(this.leadingSilenceMs).length,
+        leadingBytes: silence(leadingSilenceMs).length,
         sentBytes: 0,
         resolve,
         reject,
@@ -211,7 +221,37 @@ export class RtpPlayer {
     this.stats.rtpPackets++
     if (!this.stats.firstRtpAt) this.stats.firstRtpAt = this.now()
     if (this.current) this.current.rtpPackets++
-    this.sendRtp(RtpPacket.deSerialize(message))
+    const rtp = RtpPacket.deSerialize(message)
+    if (this.pacedSend) this.sendQueue.push(rtp)
+    else this.#send(rtp)
+  }
+
+  #send(rtp) {
+    const at = performance.now()
+    if (this.lastSendAt !== undefined) this.sendGaps.push(at - this.lastSendAt)
+    this.lastSendAt = at
+    this.sendRtp(rtp)
+  }
+
+  #drainSendQueue() {
+    if (!this.sendQueue.length) return
+    const at = performance.now()
+    // A short head start absorbs the clumps. After a real stall, restart the clock
+    // and send on time instead of bursting the backlog.
+    if (this.nextSendAt === undefined || at - this.nextSendAt > SEND_RESYNC_MS) {
+      if (this.nextSendAt === undefined && this.sendQueue.length < SEND_BUFFER_PACKETS) return
+      this.nextSendAt = at
+    }
+    while (this.sendQueue.length && at >= this.nextSendAt) {
+      this.#send(this.sendQueue.shift())
+      this.nextSendAt += FRAME_MS
+    }
+  }
+
+  timingStats() {
+    const gaps = [...this.sendGaps].sort((a, b) => a - b)
+    const at = (p) => (gaps.length ? Math.round(gaps[Math.min(gaps.length - 1, Math.floor(gaps.length * p))] * 10) / 10 : null)
+    return { packets: gaps.length + 1, gapP50: at(0.5), gapP99: at(0.99), gapMax: at(1), gapsOver40: gaps.filter((g) => g > 40).length, under5: gaps.filter((g) => g < 5).length, underruns: this.stats.underruns }
   }
 
   #fail(error) {
@@ -224,6 +264,7 @@ export class RtpPlayer {
     if (this.stopped) return
     this.stopped = true
     clearInterval(this.pacer)
+    clearInterval(this.sender)
     for (const clip of this.queue) {
       clip.decoder?.kill('SIGKILL')
       clip.reject(error)

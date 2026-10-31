@@ -11,6 +11,10 @@
 
 RFP: `../ring-halloween-rfp.docx` (scope items 1-7, Addendum A). Research: `../feasibility-assessment.md`, `../research/`.
 
+## Scope change 2026-10-31
+
+Per Eugene after the #05 ear test: default `output=bluetooth`. `doorbell` and `both` must still work as config options but get no further audio tuning. Acceptance criteria below still apply when the mode is enabled for testing.
+
 ## What to build
 
 Adds `output: doorbell` and `output: both` to the full chain. On an event the live call opens immediately, in parallel with the AI steps. The audio player feeds one continuous input (WAV header, cover clip, silence, comment) into a single ffmpeg process so the call does not end between clips. In `both` mode, Bluetooth plays by default and the doorbell takes over only if its speaker is ready before a deadline; the same comment never plays at the door twice. Only worth doing if issue 5 is go or conditional.

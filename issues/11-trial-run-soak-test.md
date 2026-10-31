@@ -11,6 +11,10 @@
 
 RFP: `../ring-halloween-rfp.docx` (scope items 1-7, Addendum A). Research: `../feasibility-assessment.md`, `../research/`.
 
+## Scope note 2026-10-31
+
+Nobody is home on Halloween night. The soak test is therefore the most important test in the project: the system must run unattended for the whole evening with no restarts. Add: a watchdog that relaunches the process if it dies, a startup self-check that refuses to start quietly if Ring, speaker, input device, sample rate, Gemini gate or clips are wrong, and a log Eugene can read from his phone afterwards.
+
 ## What to build
 
 The RFP's measurement deliverable. Someone walks up to the door 20 times (mix of day and night, some with no person to test SKIP) while the system runs unattended; every RFP and Addendum A metric is captured. Then the app runs for 3 hours with the Bluetooth speaker outside to check token persistence, speaker reconnects, and Mac wakefulness. If issue 10 was skipped, the run is Bluetooth-only and the report says so.

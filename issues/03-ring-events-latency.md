@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Type | AFK (can be built and verified without Eugene) |
-| Status | blocked |
+| Status | in-progress |
 | Assignee | ring-worker |
 | Labels | needs-triage |
 
@@ -19,7 +19,7 @@ Running `npm start`, a walk-up or doorbell press produces a trigger event in the
 
 - [ ] Uses `onNewNotification`, not `onMotionStarted`; two walk-ups 20 s apart both fire
 - [ ] Each event appends a row to `measurements/events.csv` with `received_at, triggered_at, delay_ms, category, ding_id, has_snapshot_uuid`
-- [ ] Delay is measured over at least 20 events (press events are the cleanest); median and p95 reported to the chief of staff against the RFP target of 3 s
+- [ ] Delay is measured over at least 12 **motion** events (2026-10-31: house is unattended on the night, so motion is the only trigger that matters; presses are optional extras); median and p95 reported to the chief of staff against the RFP target of 3 s
 - [ ] A second push for the same `ding.id` (battery cameras) is merged into the first event, not fired twice
 - [ ] Cooldown setting (default 15 s) prevents a trigger while `playAudio` is running; suppressed events are still logged
 

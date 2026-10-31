@@ -25,3 +25,11 @@ export function fakeEvent({ now = Date.now() } = {}) {
     snapshotUuid: null,
   }
 }
+
+export async function stubComment(_jpegBuffer) {
+  return { decision: 'COMMENT', comment: 'Wow, what a fantastic costume! Happy Halloween!' }
+}
+
+export async function stubSynthesize(_text) {
+  return path.join(ASSETS_DIR, 'test-clip.wav')
+}

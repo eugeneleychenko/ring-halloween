@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { config, SNAPSHOTS_DIR } from './config.js'
+import { config, measurementPath, SNAPSHOTS_DIR } from './config.js'
+import { appendCsvRow } from './csv.js'
 import { getActiveSession, DoorbellSession } from './live-session.js'
 import { grabKeyframe } from './keyframe.js'
 
@@ -31,32 +32,39 @@ async function uuidRoute(event, camera, cfg) {
   return { jpegBuffer: Buffer.from(image), takenAt: takenAt ?? event.eventAt, takenAtKnown: takenAt !== null }
 }
 
-async function keyframeRoute(event, camera, cfg) {
+async function keyframeRoute(event, camera, cfg, signal) {
   const shared = getActiveSession()
   const session = shared ?? new DoorbellSession(camera, { cfg })
+  const stopOwnCall = () => { if (!shared) session.end('keyframe_not_needed') }
+  signal?.addEventListener('abort', stopOwnCall, { once: true })
   try {
     // The call is what's needed here; the speaker being ready is not.
-    const call = session.call ?? (await waitForCall(session))
-    const frame = await grabKeyframe(call, { ffmpegPath: cfg.ffmpegPath, timeoutMs: cfg.keyframeTimeoutMs })
+    const call = await waitForCall(session, signal)
+    const frame = await grabKeyframe(call, { ffmpegPath: cfg.ffmpegPath, timeoutMs: cfg.keyframeTimeoutMs, signal })
     if (frame.takenAt <= event.eventAt) throw new Error('Keyframe predates the event; check the Mac clock')
     return { ...frame, takenAtKnown: true }
   } finally {
+    signal?.removeEventListener('abort', stopOwnCall)
     if (!shared) session.end('keyframe_done')
   }
 }
 
-async function waitForCall(session) {
+async function waitForCall(session, signal) {
+  let failure = null
+  session.ready.catch((error) => { failure = error })
   while (!session.call) {
-    if (session.ended) throw new Error('Live call failed to start')
-    await Promise.race([session.ready.catch(() => {}), new Promise((r) => setTimeout(r, 25))])
-    if (!session.call && session.marks.open_failed !== undefined) await session.ready
+    if (signal?.aborted) throw new Error('Not needed: another route won')
+    if (failure) throw failure
+    if (session.ended) throw new Error('Live call ended before it started')
+    await new Promise((resolve) => setTimeout(resolve, 25))
   }
   return session.call
 }
 
 async function forcedRoute(event, camera, cfg) {
+  // False on battery power and on the budget wired doorbell, doorbell_graham_cracker.
   if (!camera.canTakeSnapshotWhileRecording) {
-    throw new Error('Forced snapshot is wired-only: this camera cannot capture while recording')
+    throw new Error('Forced snapshot skipped: this camera cannot capture while recording')
   }
   const image = await withTimeout(
     camera.getNextSnapshot({ afterMs: event.eventAt, force: true }),
@@ -80,29 +88,51 @@ export class SnapshotUnavailableError extends Error {
 }
 
 /**
- * Returns the first image proven to be from this event:
- * push UUID image, then a live-stream keyframe, then forced getSnapshot (wired only).
+ * Tries every route at once and returns the first image proven to be from this event:
+ * the push UUID image, a live-stream keyframe, and a forced snapshot on wired cameras.
  * Throws SnapshotUnavailableError instead of ever returning a stale frame.
  */
 export async function getFreshSnapshot(event, { camera = event.camera, cfg = config, routes = ['uuid', 'keyframe', 'forced'], now = Date.now } = {}) {
   const started = now()
   const attempts = []
-  for (const route of routes) {
+  const controller = new AbortController()
+  const running = routes.map(async (route) => {
     const routeStarted = now()
     try {
-      const image = await SNAPSHOT_ROUTES[route](event, camera, cfg)
+      const image = await SNAPSHOT_ROUTES[route](event, camera, cfg, controller.signal)
       attempts.push({ route, ms: now() - routeStarted, ok: true })
-      return { ...image, source: route, fetchMs: now() - started, attempts }
+      return { ...image, source: route }
     } catch (error) {
       attempts.push({ route, ms: now() - routeStarted, ok: false, error: error.message })
+      throw error
     }
+  })
+  try {
+    const image = await Promise.any(running)
+    return { ...image, requestedAt: started, receivedAt: now(), fetchMs: now() - started, attempts }
+  } catch {
+    throw new SnapshotUnavailableError(attempts)
+  } finally {
+    controller.abort()
   }
-  throw new SnapshotUnavailableError(attempts)
+}
+
+export function jpegSize(buffer) {
+  let offset = 2
+  while (offset + 9 < buffer.length) {
+    if (buffer[offset] !== 0xff) return { width: null, height: null }
+    const marker = buffer[offset + 1]
+    if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
+      return { height: buffer.readUInt16BE(offset + 5), width: buffer.readUInt16BE(offset + 7) }
+    }
+    offset += 2 + buffer.readUInt16BE(offset + 2)
+  }
+  return { width: null, height: null }
 }
 
 export const SNAPSHOT_COLUMNS = [
-  'logged_at', 'ding_id', 'event_type', 'ok', 'source', 'fetch_ms', 'received_to_image_ms',
-  'taken_minus_event_ms', 'taken_at_known', 'bytes', 'file', 'attempts',
+  'ding_id', 'route', 'requested_at', 'taken_at', 'received_at', 'fresh', 'width', 'height',
+  'event_type', 'fetch_ms', 'taken_minus_event_ms', 'taken_at_known', 'bytes', 'file', 'attempts',
 ]
 
 export function saveSnapshot(event, image) {
@@ -112,20 +142,30 @@ export function saveSnapshot(event, image) {
   return file
 }
 
-export function snapshotRow(event, result, { file = null, now = Date.now } = {}) {
-  const ok = !(result instanceof Error)
+export function snapshotRow(event, result, { file = null } = {}) {
+  const iso = (ms) => (ms ? new Date(ms).toISOString() : '')
+  const failed = result instanceof Error
   return {
-    logged_at: new Date(now()).toISOString(),
     ding_id: event.id,
+    route: failed ? '' : result.source,
+    requested_at: failed ? '' : iso(result.requestedAt),
+    taken_at: failed ? '' : iso(result.takenAt),
+    received_at: failed ? '' : iso(result.receivedAt),
+    fresh: !failed,
+    ...(failed ? { width: '', height: '' } : jpegSize(result.jpegBuffer)),
     event_type: event.type,
-    ok,
-    source: ok ? result.source : '',
-    fetch_ms: ok ? result.fetchMs : '',
-    received_to_image_ms: now() - event.receivedAt,
-    taken_minus_event_ms: ok ? result.takenAt - event.eventAt : '',
-    taken_at_known: ok ? result.takenAtKnown : '',
-    bytes: ok ? result.jpegBuffer.length : '',
+    fetch_ms: failed ? '' : result.fetchMs,
+    taken_minus_event_ms: failed ? '' : result.takenAt - event.eventAt,
+    taken_at_known: failed ? '' : result.takenAtKnown,
+    bytes: failed ? '' : result.jpegBuffer.length,
     file,
     attempts: JSON.stringify(result.attempts ?? []),
   }
+}
+
+// Saves the image if there is one and logs the outcome either way.
+export function recordSnapshot(event, result) {
+  const file = result instanceof Error ? null : saveSnapshot(event, result)
+  appendCsvRow(measurementPath('snapshots.csv'), SNAPSHOT_COLUMNS, snapshotRow(event, result, { file }))
+  return file
 }

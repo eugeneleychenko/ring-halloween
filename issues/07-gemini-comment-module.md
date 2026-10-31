@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Type | AFK (can be built and verified without Eugene) |
-| Status | in-progress |
+| Status | done |
 | Assignee | ring-worker |
 | Labels | needs-triage |
 
@@ -19,12 +19,12 @@ Gemini key is available as `GEMINI_API_KEY` in `../.env` (copied from an existin
 
 ## Acceptance criteria
 
-- [ ] Model `gemini-3.5-flash-lite` with `thinking_level: minimal`, `media_resolution: low`, image downscaled to 768 px JPEG; model and settings are config values
-- [ ] Structured output schema with `decision` before `comment`; `comment` 25 words or fewer; harassment and hate-speech safety set to `block_low_and_above`
-- [ ] Post-filter rejects comments mentioning body, weight, age, race, skin, hair, attractiveness, or a person's identity; rejection falls back to a stock line and is logged
-- [ ] 2.5 s client timeout; timeout returns a stock-line decision and is logged
-- [ ] `npm run eval-gemini <folder>` reads `label.csv` (`file, person_visible`) and prints SKIP specificity, person recall, mean word count, p50/p95 latency
-- [ ] Warm-up request on startup and every 5 minutes
+- [x] Model `gemini-3.5-flash-lite` with `thinking_level: minimal`, `media_resolution: low`, image downscaled to 768 px JPEG; model and settings are config values
+- [x] Structured output schema with `decision` before `comment`; `comment` 25 words or fewer; harassment and hate-speech safety set to `block_low_and_above`
+- [x] Post-filter rejects comments mentioning body, weight, age, race, skin, hair, attractiveness, or a person's identity; rejection falls back to a stock line and is logged
+- [x] 2.5 s client timeout; timeout returns a stock-line decision and is logged
+- [x] `npm run eval-gemini <folder>` reads `label.csv` (`file, person_visible`) and prints SKIP specificity, person recall, mean word count, p50/p95 latency
+- [x] Warm-up request on startup and every 5 minutes
 - [ ] Gemini project billing status confirmed and recorded in README (free tier allows human review of inputs)
 
 ## Blocked by
@@ -33,4 +33,4 @@ Gemini key is available as `GEMINI_API_KEY` in `../.env` (copied from an existin
 
 ## Validation log
 
-_Chief of staff fills this in. Status moves ready -> in-progress -> validate -> done._
+**2026-10-31, ring-CoS: DONE, one criterion open.** Verified: settings in src/gemini.js (3.5-flash-lite, thinkingLevel minimal, media resolution low, safety BLOCK_LOW_AND_ABOVE, 2.5 s timeout, stock fallback, warm-up); 17-line deny-list; billing gate `GEMINI_BILLING_CONFIRMED` in config with door snapshots withheld until true; 82/82 tests x3. Eval on 54 public images (colour + simulated grey, x2): SKIP specificity 100%, recall 96.6%, p50 1.14 s, p95 1.47 s. Accepted the worker's prompt revision (binary human-present test) and synced it into personality.md section 3. Open: billing confirmation is Eugene's; the ≥100 real empty Ring frames wait on #06. Follow-up for #09: pass last comment into the prompt to reduce "Behold/magnificent" repeats.

@@ -8,6 +8,8 @@ ring-token.json.*
 # Local measurements and door snapshots stay on this Mac (RFP section 7)
 measurements/
 snapshots/
+clips/
+eval/
 node_modules/
 .DS_Store
 *.log

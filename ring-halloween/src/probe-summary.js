@@ -1,8 +1,9 @@
 export const PROBE_COLUMNS = [
-  'run_id', 'try', 'started_at', 'mode', 'model', 'kind', 'power', 'codec', 'video_codec',
-  'event_type', 'received_minus_triggered_ms', 'call_created_ms', 'answered_ms', 'camera_connected_ms',
-  'speaker_ready_ms', 'first_audio_ms', 'rtp_packets', 'rtp_expected', 'clip_ms',
-  'technical_ok', 'heard', 'note', 'ended_early', 'error',
+  'try', 'started_at', 'codec', 'session_open_ms', 'first_rtp_ms', 'success', 'error',
+  'audible_2m', 'clipped_start', 'clipped_end', 'note',
+  'run_id', 'mode', 'model', 'kind', 'power', 'video_codec', 'event_type', 'delay_ms',
+  'call_created_ms', 'answered_ms', 'camera_connected_ms', 'first_audio_ms',
+  'rtp_packets', 'rtp_expected', 'clip_ms', 'held_ms', 'ended_early',
 ]
 const OPEN_TARGET_MS = 5000
 
@@ -24,11 +25,11 @@ const num = (value) => (value === '' || value === null || value === undefined ? 
  */
 export function summarizeProbe(rows) {
   const tries = rows.length
-  const technicalOk = rows.filter((r) => truthy(r.technical_ok)).length
-  const asked = rows.filter((r) => r.heard === 'y' || r.heard === 'n').length
-  const heard = rows.filter((r) => r.heard === 'y').length
-  const successes = rows.filter((r) => truthy(r.technical_ok) && r.heard === 'y').length
-  const ready = rows.map((r) => num(r.speaker_ready_ms))
+  const technicalOk = rows.filter((r) => truthy(r.success)).length
+  const asked = rows.filter((r) => r.audible_2m === 'y' || r.audible_2m === 'n').length
+  const heard = rows.filter((r) => r.audible_2m === 'y').length
+  const successes = rows.filter((r) => truthy(r.success) && r.audible_2m === 'y').length
+  const ready = rows.map((r) => num(r.session_open_ms))
   const summary = {
     tries,
     technicalOk,
@@ -38,8 +39,11 @@ export function summarizeProbe(rows) {
     successes,
     successRate: asked ? successes / asked : null,
     speakerReadyMedianMs: percentile(ready, 0.5),
-    speakerReadyP90Ms: percentile(ready, 0.9),
+    speakerReadyP95Ms: percentile(ready, 0.95),
     speakerReadyMaxMs: percentile(ready, 1),
+    clippedStart: rows.filter((r) => r.clipped_start === 'y').length,
+    clippedEnd: rows.filter((r) => r.clipped_end === 'y').length,
+    firstRtpMedianMs: percentile(rows.map((r) => num(r.first_rtp_ms)), 0.5),
     firstAudioMedianMs: percentile(rows.map((r) => num(r.first_audio_ms)), 0.5),
     codecs: [...new Set(rows.map((r) => r.codec).filter(Boolean))],
     videoCodecs: [...new Set(rows.map((r) => r.video_codec).filter(Boolean))],
@@ -68,8 +72,8 @@ function verdict(s) {
 export function formatSummary(s) {
   return [
     `Verdict: ${s.verdict} (${s.reason})`,
-    `  Tries: ${s.tries}. Clip fully sent: ${s.technicalOk}. Heard: ${s.asked ? `${s.heard}/${s.asked}` : 'not asked'}`,
-    `  Speaker ready: median ${s.speakerReadyMedianMs ?? 'n/a'} ms, p90 ${s.speakerReadyP90Ms ?? 'n/a'} ms, max ${s.speakerReadyMaxMs ?? 'n/a'} ms`,
+    `  Tries: ${s.tries}. Clip fully sent: ${s.technicalOk}. Audible at 2 m: ${s.asked ? `${s.heard}/${s.asked}` : 'not rated'}. Clipped start: ${s.clippedStart}, clipped end: ${s.clippedEnd}`,
+    `  Session open: median ${s.speakerReadyMedianMs ?? 'n/a'} ms, p95 ${s.speakerReadyP95Ms ?? 'n/a'} ms, max ${s.speakerReadyMaxMs ?? 'n/a'} ms. First RTP: median ${s.firstRtpMedianMs ?? 'n/a'} ms`,
     `  Audio codec: ${s.codecs.join(', ') || 'n/a'}. Video codec: ${s.videoCodecs.join(', ') || 'n/a'}`,
     ...(s.errors.length ? [`  Errors: ${[...new Set(s.errors)].join(' | ')}`] : []),
   ].join('\n')
