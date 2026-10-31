@@ -1,0 +1,16 @@
+#!/bin/bash
+# Runs this project on Node 24 without changing the Mac's default Node.
+# Node 26 breaks Ring auth (ring-client-api issues #1874, #1876).
+for candidate in \
+  "${RING_NODE:-}" \
+  /opt/homebrew/opt/node@24/bin/node \
+  /usr/local/opt/node@24/bin/node \
+  "$HOME"/.nvm/versions/node/v24.*/bin/node \
+  "$(command -v node)"; do
+  [ -x "$candidate" ] || continue
+  case "$("$candidate" -v 2>/dev/null)" in
+    v24.*) exec "$candidate" "$@" ;;
+  esac
+done
+echo "Node 24 was not found. Install it with:  brew install node@24" >&2
+exit 1

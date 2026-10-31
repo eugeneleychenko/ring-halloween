@@ -1,0 +1,13 @@
+# Secrets and tokens: never commit
+.env
+.env.*
+!.env.example
+ring-token.json
+ring-token.json.*
+.ring.lock
+# Local measurements and door snapshots stay on this Mac (RFP section 7)
+measurements/
+snapshots/
+node_modules/
+.DS_Store
+*.log
