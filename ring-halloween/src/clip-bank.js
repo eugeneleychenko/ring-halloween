@@ -15,11 +15,21 @@ export function createClipPicker(manifest, { dir = CLIPS_DIR, random = Math.rand
   }
 }
 
+function loadManifest() {
+  const file = path.join(CLIPS_DIR, 'manifest.json')
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null
+}
+
+// The words of a bank clip, for the log.
+export function clipText(clipPath, manifest = loadManifest()) {
+  const file = path.basename(clipPath)
+  return Object.values(manifest?.categories ?? {}).flat().find((clip) => clip.file === file)?.text ?? ''
+}
+
 let picker = null
 export function pickClip(category) {
   if (!picker) {
-    const file = path.join(CLIPS_DIR, 'manifest.json')
-    picker = createClipPicker(fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null)
+    picker = createClipPicker(loadManifest())
   }
   return picker(category)
 }

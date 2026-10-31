@@ -113,7 +113,11 @@ export function downscaleJpeg(jpegBuffer, { maxPx = config.geminiImageMaxPx, ffm
   })
 }
 
-export function buildRequest(jpegForModel, cfg = config, { previousComment = null } = {}) {
+export function buildRequest(jpegsForModel, cfg = config, { previousComment = null } = {}) {
+  const frames = Array.isArray(jpegsForModel) ? jpegsForModel : [jpegsForModel]
+  const order = frames.length > 1
+    ? ' These are two moments in time. The last image is later and the visitor is usually closer, so judge the costume mainly from it. If a person is in either image, a person is here.'
+    : ''
   const avoid = previousComment
     ? ` Your previous line was: "${previousComment}". Use a different opening word and a different main adjective this time.`
     : ''
@@ -122,8 +126,8 @@ export function buildRequest(jpegForModel, cfg = config, { previousComment = nul
     contents: [{
       role: 'user',
       parts: [
-        { text: `This is the view from the doorbell right now.${avoid}` },
-        { inlineData: { mimeType: 'image/jpeg', data: jpegForModel.toString('base64') } },
+        { text: `This is the view from the doorbell right now.${order}${avoid}` },
+        ...frames.map((jpeg) => ({ inlineData: { mimeType: 'image/jpeg', data: jpeg.toString('base64') } })),
       ],
     }],
     generationConfig: {
@@ -213,7 +217,9 @@ export async function generateComment(jpegBuffer, {
     // On the free tier Google staff may read inputs: no door snapshots until billing is on.
     else if (!cfg.geminiBillingConfirmed && !publicImage) result = stock('billing_not_confirmed')
     else {
-      const body = buildRequest(await downscaleJpeg(jpegBuffer, { maxPx: cfg.geminiImageMaxPx, ffmpegPath: cfg.ffmpegPath }), cfg, { previousComment: speech.lastComment })
+      const frames = Array.isArray(jpegBuffer) ? jpegBuffer : [jpegBuffer]
+      const scaled = await Promise.all(frames.map((frame) => downscaleJpeg(frame, { maxPx: cfg.geminiImageMaxPx, ffmpegPath: cfg.ffmpegPath })))
+      const body = buildRequest(scaled, cfg, { previousComment: speech.lastComment })
       const outcome = interpret(await callGemini(body, { cfg, fetchImpl, signal: controller.signal }), speech)
       result = outcome.failure
         ? stock(outcome.failure, { rejectedComment: outcome.rejectedComment })

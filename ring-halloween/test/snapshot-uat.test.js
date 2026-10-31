@@ -9,7 +9,7 @@ import { StreamingSession } from 'ring-client-api/streaming/streaming-session'
 import { ASSETS_DIR, config } from '../src/config.js'
 import { parseCsv } from '../src/csv.js'
 import { createEvent, eventRow, EVENT_COLUMNS } from '../src/events.js'
-import { getFreshSnapshot, jpegSize, SnapshotUnavailableError, snapshotRow, SNAPSHOT_COLUMNS } from '../src/snapshot.js'
+import { getFreshSnapshot, getVisitorFrames, jpegSize, SnapshotUnavailableError, snapshotRow, SNAPSHOT_COLUMNS } from '../src/snapshot.js'
 import { applyRating } from '../src/speaker-rating.js'
 import { formatSummary, PROBE_COLUMNS, summarizeProbe } from '../src/probe-summary.js'
 import { buildMeasurements } from '../src/measurements.js'
@@ -36,6 +36,10 @@ test('the first fresh route wins even if a slower one is still running', async (
   const result = await getFreshSnapshot(event({ snapshotUuid: 'u1' }), { camera: camera({ next }), cfg })
   assert.equal(result.source, 'forced')
   assert.equal(result.takenAt, EVENT_AT + 50)
+  const fate = Object.fromEntries(result.attempts.map((a) => [a.route, a.ok === true ? 'won' : a.cancelled ? 'cancelled' : 'failed']))
+  assert.equal(fate.forced, 'won')
+  assert.equal(fate.uuid, 'cancelled')
+  assert.equal(Object.keys(fate).length, 3, 'every route is accounted for')
   assert.ok(result.jpegBuffer.length > 0)
 })
 
@@ -86,6 +90,24 @@ test('winning route stops a call opened only for a keyframe', async () => {
   assert.equal(result.source, 'uuid')
   await sleep(100)
   assert.equal(connection.stopped, 1, 'own call must be hung up')
+})
+
+const frameFrom = (source) => ({ jpegBuffer: JPEG, source, takenAt: EVENT_AT + 1, takenAtKnown: true })
+test('Gemini gets both frames when both exist, the later one counts as the snapshot', async () => {
+  const result = await getVisitorFrames(event(), { camera: {}, cfg, fast: async () => frameFrom('uuid'), closer: async () => frameFrom('closer'), closerWaitMs: 100 })
+  assert.equal(result.source, 'uuid+closer')
+  assert.equal(result.frames.length, 2)
+})
+
+test('either frame alone is enough, a slow later frame is not waited for, and none at all is an error', async () => {
+  const opts = { camera: {}, cfg, closerWaitMs: 30 }
+  assert.equal((await getVisitorFrames(event(), { ...opts, fast: async () => frameFrom('uuid'), closer: async () => { throw new Error('no call') } })).source, 'uuid')
+  assert.equal((await getVisitorFrames(event(), { ...opts, fast: async () => { throw new Error('404') }, closer: async () => frameFrom('closer') })).source, 'closer')
+  const started = Date.now()
+  const slow = await getVisitorFrames(event(), { ...opts, fast: async () => frameFrom('uuid'), closer: () => new Promise(() => {}) })
+  assert.equal(slow.source, 'uuid')
+  assert.ok(Date.now() - started < 300)
+  await assert.rejects(getVisitorFrames(event(), { ...opts, fast: async () => { throw new Error('404') }, closer: async () => { throw new Error('no call') } }), /404.*no call/)
 })
 
 test('jpegSize reads real dimensions, and the snapshot row has the agreed columns', () => {

@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { pickClip } from './clip-bank.js'
+import { clipText, pickClip } from './clip-bank.js'
 import { measurementPath } from './config.js'
 import { appendCsvRow } from './csv.js'
 import { createTriggerGate, onTrigger } from './pipeline.js'
@@ -22,14 +22,15 @@ export function createClipTrigger({ camera, gate = createTriggerGate(), pick = (
       openSession: () => null,
       snapshot: stubSnapshot,
       storeSnapshot: null,
-      comment: async () => ({ decision: 'COMMENT', comment: '' }),
-      speak: async () => {
+      comment: async () => {
         clip = pick()
         if (!clip) throw new Error('No clips found: run npm run build-clips')
-        return clip
+        return { decision: 'COMMENT', comment: clipText(clip) }
       },
+      speak: async () => clip,
       play,
       signOff: false,
+      coverClip: false,
       log,
     })
     const row = {

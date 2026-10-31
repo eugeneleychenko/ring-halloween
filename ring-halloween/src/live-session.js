@@ -29,8 +29,8 @@ const withTimeout = (promise, ms, message) => {
 }
 
 export class DoorbellSession {
-  constructor(camera, { t0 = Date.now(), cfg = config, now = Date.now } = {}) {
-    Object.assign(this, { camera, t0, cfg, now })
+  constructor(camera, { t0 = Date.now(), cfg = config, now = Date.now, videoOnly = false } = {}) {
+    Object.assign(this, { camera, t0, cfg, now, videoOnly })
     this.marks = {}
     this.timeline = []
     this.codec = null
@@ -101,10 +101,15 @@ export class DoorbellSession {
     this.maxTimer = setTimeout(() => this.end('max_session'), this.cfg.maxSessionMs)
 
     // Queued by the library until camera_connected. Audio sent before then is lost.
-    call.activateCameraSpeaker()
+    if (!this.videoOnly) call.activateCameraSpeaker()
 
     const steps = (async () => {
       await answered
+      if (this.videoOnly) {
+        await cameraConnected
+        this.mark('video_ready')
+        return
+      }
       const usingOpus = await call.isUsingOpus
       // RTP starts flowing at answer time, so the encoder is warm when the speaker opens.
       this.player = new RtpPlayer({

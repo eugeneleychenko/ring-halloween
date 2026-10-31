@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -6,14 +7,19 @@ export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 export const ASSETS_DIR = path.join(ROOT, 'assets')
 
 // A setting in ring-halloween/.env wins over the same one in the folder above it.
-for (const envFile of [path.join(ROOT, '.env'), path.join(ROOT, '..', '.env')]) {
+// Test runs use the defaults, so that tonight's settings can't change what they check.
+for (const envFile of process.env.NODE_TEST_CONTEXT ? [] : [path.join(ROOT, '.env'), path.join(ROOT, '..', '.env')]) {
   if (fs.existsSync(envFile)) process.loadEnvFile(envFile)
 }
 
-export const TOKEN_DIR = process.env.RING_TOKEN_DIR || ROOT
-export const MEASUREMENTS_DIR = process.env.MEASUREMENTS_DIR || path.join(ROOT, 'measurements')
-export const CLIPS_DIR = process.env.CLIPS_DIR || path.join(ROOT, 'clips')
-export const SNAPSHOTS_DIR = process.env.SNAPSHOTS_DIR || path.join(ROOT, 'snapshots')
+// Test runs must never touch the real logs, token or clips, however they are started.
+const testDir = process.env.NODE_TEST_CONTEXT ? fs.mkdtempSync(path.join(os.tmpdir(), 'ring-halloween-test-')) : null
+const baseDir = testDir ?? ROOT
+
+export const TOKEN_DIR = process.env.RING_TOKEN_DIR || baseDir
+export const MEASUREMENTS_DIR = process.env.MEASUREMENTS_DIR || path.join(baseDir, 'measurements')
+export const CLIPS_DIR = process.env.CLIPS_DIR || path.join(baseDir, 'clips')
+export const SNAPSHOTS_DIR = process.env.SNAPSHOTS_DIR || path.join(baseDir, 'snapshots')
 
 const num = (name, fallback) => {
   const raw = process.env[name]
@@ -33,7 +39,10 @@ export const config = {
   characterName: process.env.CHARACTER_NAME || 'Malyx',
   skipBehavior: process.env.SKIP_BEHAVIOR || 'silence',
   signOff: process.env.SIGN_OFF === 'true',
+  coverClip: process.env.COVER_CLIP !== 'false',
   geminiBillingConfirmed: process.env.GEMINI_BILLING_CONFIRMED === 'true',
+  // 'best' sends the later frame alone. In early tests, sending both caused wrong SKIPs.
+  geminiFrames: process.env.GEMINI_FRAMES || 'best',
   geminiModel: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
   geminiThinkingLevel: process.env.GEMINI_THINKING_LEVEL || 'minimal',
   geminiMediaResolution: process.env.GEMINI_MEDIA_RESOLUTION || 'low',
@@ -73,6 +82,8 @@ export const config = {
   snapshotUuidWaitBatteryMs: num('SNAPSHOT_UUID_WAIT_BATTERY_MS', 2000),
   snapshotUuidWaitWiredMs: num('SNAPSHOT_UUID_WAIT_WIRED_MS', 500),
   snapshotUuidToleranceMs: num('SNAPSHOT_UUID_TOLERANCE_MS', 2000),
+  closerFrameDelayMs: num('CLOSER_FRAME_DELAY_MS', 2000),
+  closerFrameWaitMs: num('CLOSER_FRAME_WAIT_MS', 5000),
   snapshotRouteTimeoutMs: num('SNAPSHOT_ROUTE_TIMEOUT_MS', 4000),
   keyframeTimeoutMs: num('KEYFRAME_TIMEOUT_MS', 10000),
 }

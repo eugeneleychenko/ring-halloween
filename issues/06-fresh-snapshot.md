@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Type | AFK (can be built and verified without Eugene) |
-| Status | blocked |
+| Status | in-progress |
 | Assignee | ring-worker |
 | Labels | needs-triage |
 

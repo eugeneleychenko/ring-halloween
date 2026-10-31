@@ -5,7 +5,8 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { parseCsv, toCsvLine } from '../src/csv.js'
+import { CLIPS_DIR, MEASUREMENTS_DIR, SNAPSHOTS_DIR, TOKEN_DIR } from '../src/config.js'
+import { appendCsvRow, parseCsv, toCsvLine } from '../src/csv.js'
 import { createEventRouter, toMs } from '../src/events.js'
 import { createTriggerGate, onTrigger, RUN_COLUMNS } from '../src/pipeline.js'
 import { summarizeProbe } from '../src/probe-summary.js'
@@ -24,7 +25,7 @@ test('simulate writes one row with the exact agreed columns, offline', () => {
   assert.equal(runScript('src/cli/simulate.js', env).status, 0)
   assert.equal(runScript('src/cli/simulate.js', env).status, 0)
   const text = fs.readFileSync(path.join(dir, 'runs.csv'), 'utf8')
-  assert.equal(text.split('\n')[0], 'trigger_id,trigger_at,event_received_at,snapshot_at,snapshot_route,gemini_ms,gemini_decision,tts_ms,output,session_open_ms,first_audio_at,success,error')
+  assert.equal(text.split('\n')[0], 'trigger_id,trigger_at,event_received_at,snapshot_at,snapshot_route,gemini_ms,gemini_decision,tts_ms,output,session_open_ms,first_audio_at,success,error,snapshot_path,costume_label,comment_text,audio_path,cover_clip,comment_source,comment_at')
   const rows = parseCsv(text)
   assert.equal(rows.length, 2, 'appends, one header only')
   assert.match(rows[0].trigger_id, /^sim-/)
@@ -62,6 +63,7 @@ test('.env.example names every setting the code reads', () => {
     for (const m of code.matchAll(/process\.env\.([A-Z0-9_]+)|num\('([A-Z0-9_]+)'/g)) read.add(m[1] ?? m[2])
   }
   read.delete('LISTEN_ARGS') // internal, set by npm start
+  read.delete('NODE_TEST_CONTEXT') // set by the test runner itself
   assert.ok(read.size > 10)
   for (const name of read) assert.match(example, new RegExp(`\\b${name}=`), `${name} missing`)
 })
@@ -148,8 +150,8 @@ test('the gate blocks while busy and through the cooldown', () => {
 })
 
 test('onTrigger logs suppressed, SKIP and failure runs', async () => {
-  assert.equal(RUN_COLUMNS.length, 13)
-  const base = { log: () => {}, storeSnapshot: null, openSession: () => null, output: 'bluetooth', snapshot: async () => ({ jpegBuffer: Buffer.from('x'), takenAt: 1 }) }
+  assert.equal(RUN_COLUMNS.length, 20)
+  const base = { log: () => {}, coverClip: false, storeSnapshot: null, openSession: () => null, output: 'bluetooth', snapshot: async () => ({ jpegBuffer: Buffer.from('x'), takenAt: 1 }) }
   const event = { id: 'e', receivedAt: 2, triggeredAt: 1 }
 
   const blocked = await onTrigger(event, { ...base, gate: { tryEnter: () => ({ allowed: false, reason: 'cooldown' }) } })
@@ -173,4 +175,31 @@ test('the probe never reports GO unless a person heard it', () => {
   assert.equal(summarizeProbe(rows.map((r) => ({ ...r, audible_2m: 'n' }))).verdict, 'NO-GO')
   assert.equal(summarizeProbe(rows.map((r) => ({ ...r, success: 'false' }))).verdict, 'NO-GO')
   assert.equal(summarizeProbe(rows.map((r) => ({ ...r, audible_2m: 'y', session_open_ms: '9000' }))).verdict, 'CONDITIONAL')
+})
+
+test('adding columns to an existing log keeps old rows lined up', () => {
+  const dir = tempDir()
+  const file = path.join(dir, 'log.csv')
+  appendCsvRow(file, ['a', 'b'], { a: '1', b: 'x,y' })
+  appendCsvRow(file, ['a', 'b', 'c'], { a: '2', b: '3', c: 'new' })
+  appendCsvRow(file, ['a', 'b', 'c'], { a: '4', b: '5', c: '6' })
+  assert.deepEqual(parseCsv(fs.readFileSync(file, 'utf8')), [{ a: '1', b: 'x,y', c: '' }, { a: '2', b: '3', c: 'new' }, { a: '4', b: '5', c: '6' }])
+  assert.throws(() => appendCsvRow(file, ['a'], { a: '9' }), /doesn't know: b, c/)
+})
+
+test('onTrigger records the four visitor-log fields', async () => {
+  const open = () => ({ tryEnter: () => ({ allowed: true }), release() {} })
+  const result = await onTrigger({ id: 'v', receivedAt: 2, triggeredAt: 1 }, {
+    log: () => {}, coverClip: false, output: 'bluetooth', openSession: () => null, gate: open(),
+    snapshot: async () => ({ jpegBuffer: Buffer.from('x'), takenAt: 1 }), storeSnapshot: () => '/snap.jpg',
+    comment: async () => ({ decision: 'COMMENT', costume: 'witch', comment: 'Nice hat!' }), speak: async () => '/a.wav', play: async () => ({}),
+  })
+  const { snapshot_path, costume_label, comment_text, audio_path } = result.row
+  assert.deepEqual({ snapshot_path, costume_label, comment_text, audio_path }, { snapshot_path: '/snap.jpg', costume_label: 'witch', comment_text: 'Nice hat!', audio_path: '/a.wav' })
+})
+
+test('a test run can never point at the real logs, token, clips or snapshots', () => {
+  for (const dir of [MEASUREMENTS_DIR, SNAPSHOTS_DIR, CLIPS_DIR, TOKEN_DIR]) {
+    assert.ok(!path.resolve(dir).startsWith(ROOT), `${dir} is inside the project`)
+  }
 })

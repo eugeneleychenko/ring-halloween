@@ -109,12 +109,59 @@ export async function getFreshSnapshot(event, { camera = event.camera, cfg = con
   })
   try {
     const image = await Promise.any(running)
-    return { ...image, requestedAt: started, receivedAt: now(), fetchMs: now() - started, attempts }
+    // Routes still running get stopped. Record that, so the log shows every route's fate.
+    const finished = new Set(attempts.map((attempt) => attempt.route))
+    const stoppedAt = now() - started
+    const all = [...attempts, ...routes.filter((route) => !finished.has(route)).map((route) => ({ route, ok: null, cancelled: true, ms: stoppedAt }))]
+    return { ...image, requestedAt: started, receivedAt: now(), fetchMs: stoppedAt, attempts: all }
   } catch {
     throw new SnapshotUnavailableError(attempts)
   } finally {
     controller.abort()
   }
+}
+
+/**
+ * A frame from about `delayMs` after the event, when the visitor has come closer. The
+ * push image is shot as motion starts, so it tends to show someone still far away.
+ * Hangs up afterwards: Ring sends no motion events while a call is open.
+ */
+export async function getCloserFrame(event, { camera = event.camera, cfg = config, delayMs = cfg.closerFrameDelayMs, now = Date.now } = {}) {
+  const started = now()
+  const shared = getActiveSession()
+  const session = shared ?? new DoorbellSession(camera, { cfg, videoOnly: true })
+  try {
+    await session.ready
+    const wait = event.receivedAt + delayMs - now()
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
+    const frame = await grabKeyframe(session.call, { ffmpegPath: cfg.ffmpegPath, timeoutMs: cfg.keyframeTimeoutMs })
+    return { ...frame, takenAtKnown: true, source: 'closer', requestedAt: started, receivedAt: now(), fetchMs: now() - started, attempts: [{ route: 'closer', ms: now() - started, ok: true }] }
+  } finally {
+    if (!shared) session.end('closer_frame_done')
+  }
+}
+
+/**
+ * The push image and the later frame, for Gemini. Either alone will do. The fast image
+ * proves someone was there at the event; the later one shows the costume better.
+ * Waits a limited time for the later frame, so that a slow call can't hold up a comment.
+ */
+export async function getVisitorFrames(event, { camera = event.camera, cfg = config, fast = getFreshSnapshot, closer = getCloserFrame, closerWaitMs = cfg.closerFrameWaitMs } = {}) {
+  const fastAttempt = fast(event, { camera, cfg, routes: ['uuid', 'forced'] })
+  const closerAttempt = closer(event, { camera, cfg })
+  const timedOut = new Promise((resolve) => { setTimeout(() => resolve(null), closerWaitMs).unref?.() })
+  const [fastResult, closerResult] = await Promise.all([
+    fastAttempt.catch((error) => error),
+    Promise.race([closerAttempt, timedOut]).catch((error) => error),
+  ])
+  closerAttempt.catch(() => {})
+  const frames = [fastResult, closerResult].filter((frame) => frame && !(frame instanceof Error))
+  if (!frames.length) {
+    const reasons = [fastResult, closerResult].map((r) => (r instanceof Error ? r.message : 'later frame too slow')).join('; ')
+    throw new SnapshotUnavailableError([{ route: 'all', ok: false, error: reasons }])
+  }
+  const best = frames.at(-1)
+  return { ...best, source: frames.map((frame) => frame.source).join('+'), frames }
 }
 
 export function jpegSize(buffer) {

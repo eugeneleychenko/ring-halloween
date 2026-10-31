@@ -77,7 +77,7 @@ export function printSelfCheck(results, log = console.log) {
   const failed = results.filter((r) => r.status === 'FAIL')
   const warned = results.filter((r) => r.status === 'WARN')
   log('Self-check')
-  for (const r of results) log(`  ${r.status.padEnd(4)}  ${r.name.padEnd(14)} ${r.detail}`)
+  for (const r of results) log(`  ${(r.status === 'OK' ? 'PASS' : r.status).padEnd(4)}  ${r.name.padEnd(14)} ${r.detail}`)
   log('')
   if (failed.length) {
     log('*****************************************************')

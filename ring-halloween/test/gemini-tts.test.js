@@ -40,6 +40,17 @@ test('the previous comment goes in the request so wording can vary', () => {
   assert.ok(!buildRequest(JPEG, config).contents[0].parts[0].text.includes('previous'))
 })
 
+test('two frames go in order, with the later one marked as the costume view', async () => {
+  const body = buildRequest([JPEG, JPEG], config)
+  assert.equal(body.contents[0].parts.filter((p) => p.inlineData).length, 2)
+  assert.match(body.contents[0].parts[0].text, /last image is later/)
+  assert.ok(!buildRequest(JPEG, config).contents[0].parts[0].text.includes('last image'))
+  let sent
+  const result = await generateComment([JPEG, JPEG], { ...quiet, fetchImpl: async (u, init) => { sent = JSON.parse(init.body); return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ decision: 'COMMENT', comment: 'A splendid pirate costume, ahoy there, friend!' }) }] } }] })) } })
+  assert.equal(result.source, 'model')
+  assert.equal(sent.contents[0].parts.filter((p) => p.inlineData).length, 2)
+})
+
 test('images are downscaled to 768 px on the long side', async () => {
   const big = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=1920x1080', '-frames:v', '1', '-f', 'image2pipe', '-vcodec', 'mjpeg', 'pipe:1'], { maxBuffer: 1e8 }).stdout
   const small = await downscaleJpeg(big)
@@ -113,7 +124,7 @@ test('the clip picker is random but never repeats immediately', () => {
 test('skip and sign-off defaults stay silent, and each is one setting away', async () => {
   const played = []
   const run = (options) => onTrigger({ id: 'e', receivedAt: 2, triggeredAt: 1 }, {
-    log: () => {}, storeSnapshot: null, openSession: () => null, output: 'bluetooth',
+    log: () => {}, coverClip: false, storeSnapshot: null, openSession: () => null, output: 'bluetooth',
     gate: createTriggerGate({ cooldownMs: 0 }), snapshot: async () => ({ jpegBuffer: Buffer.from('x'), takenAt: 1 }),
     speak: async () => 'comment.wav', play: async (clip) => { played.push(clip); return {} }, pickClip: (category) => `${category}.wav`, ...options,
   })

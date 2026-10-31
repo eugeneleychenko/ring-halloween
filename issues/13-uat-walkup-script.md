@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Type | HITL (Eugene at the door, ring-worker at the Mac, ring-CoS validating) |
-| Status | blocked |
+| Status | ready (checkpoint 1) |
 | Assignee | ring-worker (prepares), Eugene (performs) |
 | Labels | needs-triage |
 

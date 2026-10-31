@@ -13,6 +13,7 @@ const result = await onTrigger(event, {
   storeSnapshot: null,
   comment: stubComment,
   speak: stubSynthesize,
+  coverClip: false,
   play: stubPlayAudio,
   openSession: () => null,
 })

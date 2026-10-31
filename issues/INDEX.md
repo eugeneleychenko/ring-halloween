@@ -19,7 +19,7 @@ Vertical slices of the RFP and Addendum A. Each issue is a complete, demoable pa
 | [#01 Project scaffold, config loading and measurements CSV](01-scaffold-config-measurements.md) | AFK | done | - |
 | [#02 Ring auth and device inventory](02-ring-auth-device-inventory.md) | HITL | done | #01 |
 | [#03 Ring motion and press events received on the Mac with latency logged](03-ring-events-latency.md) | AFK | ready | #02 |
-| [#04 Bluetooth tracer: a Ring event plays a stock clip on the outdoor speaker](04-bluetooth-tracer.md) | AFK | blocked | #03 |
+| [#04 Bluetooth tracer: a Ring event plays a stock clip on the outdoor speaker](04-bluetooth-tracer.md) | AFK | done | #03 |
 | [#05 Doorbell speaker probe and go/no-go](05-doorbell-speaker-probe.md) | HITL | done (conditional) | #02 |
 | [#06 Fresh snapshot within the latency budget](06-fresh-snapshot.md) | AFK | blocked | #03 |
 | [#07 Gemini costume comment module with SKIP evaluation harness](07-gemini-comment-module.md) | AFK | done | #01 |
@@ -28,7 +28,7 @@ Vertical slices of the RFP and Addendum A. Each issue is a complete, demoable pa
 | [#10 Doorbell output and both-mode arbitration with continuous audio](10-doorbell-output-arbitration.md) | AFK | blocked | #05, #09 |
 | [#11 20-trial measurement run and 3-hour soak test](11-trial-run-soak-test.md) | HITL | blocked | #09, #10 |
 | [#12 Feasibility report, non-developer README, and demo video](12-report-readme-video.md) | HITL | blocked | #11 |
-| [#13 UAT: Eugene's walk-up acceptance script](13-uat-walkup-script.md) | HITL | blocked | #04 (cp1), #09 (cp2), #10 or #09 (cp3) |
+| [#13 UAT: Eugene's walk-up acceptance script](13-uat-walkup-script.md) | HITL | ready (cp1) | #04 (cp1), #09 (cp2), #10 or #09 (cp3) |
 | [#14 Visitor log: what the camera saw and what Malyx said](14-visitor-log.md) | AFK | blocked | #09 (generator can start now) |
 
 ## Dependency graph

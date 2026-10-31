@@ -23,7 +23,8 @@
     "rate-speaker": "bin/node24 src/cli/rate-speaker.js",
     "check": "bin/node24 src/cli/check.js",
     "night": "bin/keep-running",
-    "live-clips": "bin/node24 src/cli/live-clips.js"
+    "live-clips": "bin/node24 src/cli/live-clips.js",
+    "try-chain": "bin/node24 src/cli/try-chain.js"
   },
   "dependencies": {
     "ring-client-api": "14.3.0",

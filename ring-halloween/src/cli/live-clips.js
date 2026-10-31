@@ -9,6 +9,7 @@ import { measurementPath } from '../config.js'
 import { appendCsvRow } from '../csv.js'
 import { connectRing, describeCamera, pickDoorbell, printCamera } from '../ring.js'
 import { printSelfCheck, runSelfCheck } from '../self-check.js'
+import { getCloserFrame, getFreshSnapshot, recordSnapshot } from '../snapshot.js'
 import { fakeEvent } from '../stubs.js'
 import { surviveErrors } from '../survive.js'
 
@@ -35,6 +36,23 @@ watchEvents(camera, {
   onEvent(event) {
     appendCsvRow(measurementPath('events.csv'), EVENT_COLUMNS, eventRow(event))
     trigger(event).catch((error) => console.error(`[trigger] ${error.message}`))
+    // Measures snapshots on real visitors without silencing the door. A failed
+    // snapshot gets logged and has no effect on the clip.
+    getCloserFrame(event, { camera })
+      .then((image) => {
+        const file = recordSnapshot(event, image)
+        console.log(`[closer] ${event.id}: ${image.fetchMs} ms in total, taken ${image.takenAt - event.eventAt} ms after the event, ${file}`)
+      })
+      .catch((error) => console.log(`[closer] ${event.id} FAILED: ${error.message}`))
+    getFreshSnapshot(event, { camera, routes: ['uuid', 'forced'] })
+      .then((image) => {
+        const file = recordSnapshot(event, image)
+        console.log(`[snapshot] ${event.id}: ${image.source} in ${image.fetchMs} ms, taken ${image.takenAt - event.eventAt} ms after the event, ${file}`)
+      })
+      .catch((error) => {
+        recordSnapshot(event, error)
+        console.log(`[snapshot] ${event.id} FAILED: ${error.message}`)
+      })
   },
   onDuplicate(event, info) {
     appendCsvRow(measurementPath('events.csv'), EVENT_COLUMNS, eventRow(event, { isDuplicate: true, ...info }))
