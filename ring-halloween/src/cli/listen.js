@@ -88,8 +88,10 @@ console.log(`\nListening. Log: ${eventsCsv}`)
 console.log('To measure the miss rate: press Enter at the moment you walk up or press the button. Ctrl-C to stop.\n')
 if (process.stdin.isTTY) readline.createInterface({ input: process.stdin }).on('line', markTrial)
 
-process.on('SIGINT', () => {
-  stop()
-  ring.close()
-  process.exit(0)
-})
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    stop()
+    ring.close()
+    process.exit(130)
+  })
+}

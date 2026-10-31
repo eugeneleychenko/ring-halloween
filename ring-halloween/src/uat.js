@@ -25,7 +25,7 @@ export const CHECKPOINTS = {
     mode: { output: 'bluetooth', stockClipOnly: true },
     scenarios: [
       { id: 1, text: 'Walk up to the door normally, stop, and wait 10 s', expected: 'Stock clip plays on the Bluetooth speaker within 6 s', expect: 'plays' },
-      { id: 2, text: 'Press the doorbell', expected: 'Stock clip plays within 6 s', expect: 'plays' },
+      { id: 2, text: 'Press the doorbell', expected: 'Stock clip plays within 6 s. Not required, since nobody is home on the night', expect: 'any', logOnly: true },
       { id: 3, text: 'Walk up again, 20 s after your last walk-up began', expected: 'Plays again: duplicates must not swallow it', expect: 'plays' },
       { id: 4, text: 'Walk up again, within 10 s of the clip ending', expected: 'Nothing plays. The event is logged as suppressed', expect: 'suppressed' },
       { id: 5, text: 'Walk past at the edge of the view without approaching', expected: 'Either result is fine. This logs what the Ring motion zone does', expect: 'any', logOnly: true },

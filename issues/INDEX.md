@@ -29,6 +29,7 @@ Vertical slices of the RFP and Addendum A. Each issue is a complete, demoable pa
 | [#11 20-trial measurement run and 3-hour soak test](11-trial-run-soak-test.md) | HITL | blocked | #09, #10 |
 | [#12 Feasibility report, non-developer README, and demo video](12-report-readme-video.md) | HITL | blocked | #11 |
 | [#13 UAT: Eugene's walk-up acceptance script](13-uat-walkup-script.md) | HITL | blocked | #04 (cp1), #09 (cp2), #10 or #09 (cp3) |
+| [#14 Visitor log: what the camera saw and what Malyx said](14-visitor-log.md) | AFK | blocked | #09 (generator can start now) |
 
 ## Dependency graph
 

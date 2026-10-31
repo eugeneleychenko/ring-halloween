@@ -1,0 +1,31 @@
+#!/bin/bash
+# Keeps the doorbell program running all evening. If it dies, this logs that and starts
+# it again. Ctrl-C, or the program finishing normally, stops the loop for good.
+cd "$(dirname "$0")/.." || exit 1
+log="${MEASUREMENTS_DIR:-measurements}/restarts.csv"
+delay="${RESTART_DELAY_SECONDS:-10}"
+mkdir -p "$(dirname "$log")"
+[ -s "$log" ] || echo "at,exit_code,restart_number" > "$log"
+restarts=0
+child=""
+# A background child of a script ignores SIGINT, so it has to be told with TERM.
+stop() { [ -n "$child" ] && kill -TERM "$child" 2>/dev/null; wait "$child" 2>/dev/null; exit 0; }
+trap stop INT TERM
+while true; do
+  if [ -n "${KEEP_RUNNING_COMMAND:-}" ]; then
+    $KEEP_RUNNING_COMMAND &
+  else
+    bin/node24 src/cli/start.js &
+  fi
+  child=$!
+  wait "$child"
+  code=$?
+  child=""
+  if [ "$code" -eq 0 ] || [ "$code" -eq 130 ]; then
+    exit 0
+  fi
+  restarts=$((restarts + 1))
+  echo "$(date -u +%Y-%m-%dT%H:%M:%SZ),$code,$restarts" >> "$log"
+  echo "[keep-running] Stopped with code $code. Restart $restarts in $delay s." >&2
+  sleep "$delay"
+done

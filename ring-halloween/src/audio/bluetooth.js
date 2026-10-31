@@ -64,11 +64,16 @@ export function createBluetoothOutput({
   keepAliveMs = config.bluetoothKeepAliveMs,
   healthCheckMs = config.bluetoothHealthCheckMs,
   volume = config.bluetoothVolume,
+  reconnectDelaysMs = [5000, 15000, 30000, 60000],
+  connectSettleMs = 8000,
+  sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms).unref?.() }),
   keepAliveFile = path.join(ASSETS_DIR, 'keepalive.wav'),
   writeLog = (row) => appendCsvRow(measurementPath('bluetooth.csv'), BLUETOOTH_LOG_COLUMNS, row),
 } = {}) {
   let queue = Promise.resolve()
   let playing = 0
+  let reconnecting = null
+  let stopped = false
   const timers = []
   const record = (kind, device, detail = '', extra = {}) => writeLog({ at: new Date(now()).toISOString(), kind, device, detail, ...extra })
   const warn = (kind, device, detail) => {
@@ -100,8 +105,7 @@ export function createBluetoothOutput({
     if (volume !== null) await run('osascript', ['-e', `set volume output volume ${volume}`])
   }
 
-  // Too slow to run before every play (see README), so the health check runs it instead.
-  async function checkSampleRate() {
+    async function checkSampleRate() {
     const report = await run('system_profiler', ['SPAudioDataType'])
     const rate = sampleRateOf(report, speakerName)
     if (rate !== null && rate <= CALL_QUALITY_MAX_HZ) {
@@ -111,10 +115,50 @@ export function createBluetoothOutput({
     return rate
   }
 
-  async function reconnect() {
-    if (!speakerAddress) return false
-    await run('blueutil', ['--connect', speakerAddress]).catch((error) => warn('reconnect_failed', speakerName, error.message))
-    return (await listOutputs()).includes(speakerName)
+  const speakerListed = async () => (await listOutputs()).includes(speakerName)
+
+  async function waitUntilListed() {
+    // A successful connect takes a few seconds to show up as an audio output.
+    const deadline = now() + connectSettleMs
+    while (now() < deadline) {
+      if (await speakerListed()) return true
+      await sleep(Math.min(1000, connectSettleMs))
+    }
+    return speakerListed()
+  }
+
+  /**
+   * Keeps trying in the background until the speaker returns, for as long as it takes.
+   * A speaker can refuse a connect while it still thinks it is connected, so every
+   * other try disconnects first. Nothing ever waits on this: visitors meanwhile get
+   * the Mac speaker.
+   */
+  function startReconnecting() {
+    if (reconnecting) return reconnecting
+    if (!speakerAddress) return Promise.resolve(false)
+    const started = now()
+    reconnecting = (async () => {
+      for (let attempt = 0; !stopped; attempt++) {
+        if (await speakerListed()) break
+        record('reconnect_attempt', speakerName, `attempt ${attempt + 1}${attempt % 2 ? ', disconnecting first' : ''}`)
+        try {
+          if (attempt % 2) await run('blueutil', ['--disconnect', speakerAddress])
+          await run('blueutil', ['--connect', speakerAddress])
+          if (await waitUntilListed()) break
+        } catch (error) {
+          record('reconnect_failed', speakerName, error.message.split('\n')[0])
+        }
+        await sleep(reconnectDelaysMs[Math.min(attempt, reconnectDelaysMs.length - 1)])
+      }
+      if (stopped) return false
+      await enqueue(pinOutput)
+      record('reconnected', speakerName, `Back after ${Math.round((now() - started) / 1000)} s, output and input re-pinned`)
+      return true
+    })().catch((error) => {
+      warn('reconnect_error', speakerName, error.message)
+      return false
+    }).finally(() => { reconnecting = null })
+    return reconnecting
   }
 
   // macOS listing the speaker as an output is the test, since that is what audio needs.
@@ -124,25 +168,20 @@ export function createBluetoothOutput({
 
   // Each tool takes about 100 ms and this runs before every play, so they run together.
   async function pinOutput() {
-    const [listed, current, input] = await Promise.all([listOutputs(), currentOutput(), currentInput(), setVolume()])
-    let outputs = listed
-    let available = outputs.includes(speakerName)
-    if (!available) {
-      available = await reconnect()
-      outputs = await listOutputs()
-    }
+    const [outputs, current, input] = await Promise.all([listOutputs(), currentOutput(), currentInput()])
+    const available = outputs.includes(speakerName)
+    if (!available) startReconnecting()
     const device = available ? speakerName : outputs.find((name) => /speakers/i.test(name) && name !== speakerName)
     if (!device) throw new Error(`Neither "${speakerName}" nor a built-in speaker is available`)
-    if (!available) warn('fallback', device, `"${speakerName}" is unreachable, playing on "${device}"`)
-    // Reconnecting can change the defaults, so re-read them after a reconnect.
-    const before = listed.includes(speakerName) ? current : await currentOutput()
-    if (before !== device) {
-      warn('output_corrected', device, `Output was "${before}", switching to "${device}"`)
+    if (!available) warn('fallback', device, `"${speakerName}" is unreachable, playing on "${device}" and still trying to reconnect`)
+    if (current !== device) {
+      warn('output_corrected', device, `Output was "${current}", switching to "${device}"`)
       await setOutput(device)
       const verified = await currentOutput()
       if (verified !== device) throw new Error(`Could not switch output to "${device}", still "${verified}"`)
     }
-    await pinInput(listed.includes(speakerName) ? input : await currentInput())
+    // After the switch, since macOS keeps a separate volume for each device.
+    await Promise.all([pinInput(input), setVolume()])
     return device
   }
 
@@ -166,6 +205,9 @@ export function createBluetoothOutput({
       playing++
       try {
         const device = await pinOutput()
+        // Takes over 200 ms, so it runs alongside the play instead of delaying it. Any
+        // problem gets logged and fixed by the end of this clip, in time for the next.
+        checkSampleRate().catch((error) => warn('sample_rate_check_failed', device, error.message))
         const { file, cleanup } = await toFile(input)
         const startedAt = now()
         try {
@@ -187,8 +229,9 @@ export function createBluetoothOutput({
     try {
       await enqueue(async () => {
         if (await speakerAvailable()) {
-          await pinOutput()
+          const device = await pinOutput()
           await player(keepAliveFile)
+          record('keepalive', device)
         }
       })
     } catch (error) {
@@ -204,11 +247,9 @@ export function createBluetoothOutput({
         await checkSampleRate()
         return true
       }
-      warn('speaker_lost', speakerName, `"${speakerName}" is gone, trying to reconnect`)
-      if (!(await reconnect())) return false
-      record('reconnected', speakerName, 'Speaker is back')
-      await enqueue(pinOutput)
-      return true
+      if (!reconnecting) warn('speaker_lost', speakerName, `"${speakerName}" is gone, trying to reconnect`)
+      startReconnecting()
+      return false
     } catch (error) {
       warn('health_check_failed', speakerName, error.message)
       return false
@@ -226,7 +267,9 @@ export function createBluetoothOutput({
       for (const timer of timers) timer.unref()
       return healthCheck()
     },
+    whenReconnected: () => reconnecting ?? Promise.resolve(false),
     stop() {
+      stopped = true
       for (const timer of timers.splice(0)) clearInterval(timer)
     },
   }

@@ -178,7 +178,7 @@ test('a checkpoint writes the agreed CSV and a scorecard, including a scenario w
   assert.equal(rows.length, 5)
   assert.equal(rows[0].comment_text, 'hello')
   assert.equal(rows[4].trigger_id, '')
-  assert.match(scorecard, /4\/4 graded scenarios passed/)
+  assert.match(scorecard, /3\/3 graded scenarios passed/)
   assert.match(scorecard, /median 2500 ms/)
   assert.deepEqual(CHECKPOINTS[3].scenarios.map((s) => s.id), [1, 3, 4, 5, 9, 10, 11])
   await assert.rejects(runCheckpoint(9, { ask: async () => '', collectTriggers: async () => [] }), /must be 1, 2 or 3/)

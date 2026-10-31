@@ -82,7 +82,9 @@ If it says live view is blocked or E2EE is on, change that in the Ring app.
 
 The speaker is the main voice on the night. Pair it to the Mac in System Settings, then put its name and address in `.env` as `BLUETOOTH_SPEAKER_NAME` and `BLUETOOTH_SPEAKER_ADDRESS`.
 
-While `npm start` runs, the Mac stays awake, the sound output stays pointed at the speaker, a nearly silent sound plays every 3 minutes so the speaker doesn't go to sleep, and the connection is checked every 30 seconds. If the speaker can't be reached, the voice plays on the Mac's own speaker and a warning goes in `measurements/bluetooth.csv`.
+While `npm start` runs, the Mac stays awake, the sound output stays pointed at the speaker, a nearly silent sound plays every 2 minutes so the speaker doesn't go to sleep, and the connection is checked every 30 seconds. If the speaker can't be reached, the voice plays on the Mac's own speaker, a warning goes in `measurements/bluetooth.csv`, and it keeps trying to reconnect in the background until the speaker is back.
+
+Playback starts about 0.2 s after a motion event reaches the Mac, measured to the moment the play command starts. Each clip then has 0.3 s of silence at the start, and Bluetooth adds roughly 0.1–0.3 s (not measured). At the door it sounded immediate.
 
 **If it suddenly sounds like a bad phone call:** macOS may have started using the speaker's microphone, which forces the speaker into low-quality call mode. The program checks for this and switches the mic back to the Mac's own, and logs when it does. To fix it by hand, go to System Settings > Sound > Input and pick the Mac's microphone.
 
@@ -98,7 +100,7 @@ On Google's free tier, Google staff may read what you send. Photos from your doo
 2. Check that its plan is a paid tier, not "Free".
 3. In `.env`, set `GEMINI_BILLING_CONFIRMED=true`.
 
-**Status: not yet confirmed.** Google's API doesn't show this to a program, so a person has to check.
+**Status: confirmed.** The owner confirmed on 2026-10-31 that this key's project is on a paid Cloud Billing account. Google's API doesn't show this to a program, so a person has to check.
 
 To test how well the AI spots people, put photos in a folder with a `label.csv` file (columns: `file, person_visible`) and run `npm run eval-gemini <folder>`.
 
@@ -110,6 +112,18 @@ The voice is Malyx, on the ElevenLabs Pro plan (1,800,000 characters a month).
 - **Pre-made clips.** `npm run build-clips` makes the 26 ready-to-play lines in `clips/`, listed by category in `clips/manifest.json`. Run it again after changing a line, the voice or a setting; only what changed gets remade.
 - **If words sound blurry outside.** The echo is part of the voice, and it can blur consonants on a small speaker. In `.env`, try `TTS_HIGHPASS_HZ=110` and `TTS_PRESENCE_DB=3`, then run `npm run build-clips` again.
 - **To tune by ear.** `TTS_STABILITY`, `TTS_SIMILARITY_BOOST`, `TTS_STYLE` and `TTS_SPEED` are all in `.env`.
+
+## On the night
+
+Nobody needs to be home. In the Terminal app, with the Mac plugged in, run:
+
+```
+npm run night
+```
+
+It checks everything first and prints a loud warning if anything would stop it working. Then it stays running: if something goes wrong it logs the error and carries on, and if the program dies it starts again and notes that in `measurements/restarts.csv`. Press Ctrl-C to stop it.
+
+To run only the checks: `npm run check`.
 
 ## Private files
 

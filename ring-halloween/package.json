@@ -20,7 +20,10 @@
     "measure-tts": "bin/node24 src/cli/measure-tts.js",
     "listen": "bin/node24 src/cli/listen.js",
     "uat": "bin/node24 src/cli/uat.js",
-    "rate-speaker": "bin/node24 src/cli/rate-speaker.js"
+    "rate-speaker": "bin/node24 src/cli/rate-speaker.js",
+    "check": "bin/node24 src/cli/check.js",
+    "night": "bin/keep-running",
+    "live-clips": "bin/node24 src/cli/live-clips.js"
   },
   "dependencies": {
     "ring-client-api": "14.3.0",

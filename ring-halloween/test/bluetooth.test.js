@@ -21,6 +21,7 @@ function setup({ outputs = ['SB571', 'MacBook Air Speakers'], current = 'SB571',
     speakerName: 'SB571', speakerAddress: '00:11:67:D3:78:E6', run, volume: 80,
     player: async (file) => { state.played.push({ file, device: state.current }) },
     log: (m) => state.warnings.push(m), writeLog: (r) => state.rows.push(r), keepAliveMs: 1e6, healthCheckMs: 1e6, keepAliveFile: 'keepalive.wav',
+    reconnectDelaysMs: [1, 1, 1, 1], connectSettleMs: 5, sleep: () => new Promise((r) => setImmediate(r)),
   })
   return { state, output }
 }
@@ -57,26 +58,62 @@ test('a failed switch is an error, never a silent play on the wrong device', asy
 test('an unreachable speaker tries a reconnect, then falls back to the Mac with a warning', async () => {
   const { state, output } = setup({ outputs: ['MacBook Air Speakers'], current: 'MacBook Air Speakers' })
   const result = await output.play('clip.wav')
-  assert.ok(state.calls.includes('blueutil --connect 00:11:67:D3:78:E6'))
+  assert.ok(state.calls.includes('blueutil --connect 00:11:67:D3:78:E6') || state.rows.some((r) => r.kind === 'reconnect_attempt'))
+  output.stop()
   assert.equal(result.fallback, true)
   assert.equal(result.device, 'MacBook Air Speakers')
   assert.ok(state.rows.some((r) => r.kind === 'fallback'))
 })
 
-test('a reconnect that works plays on the speaker, not the Mac', async () => {
-  const { state, output } = setup({ outputs: ['MacBook Air Speakers'], current: 'MacBook Air Speakers', onConnect: (s) => s.outputs.push('SB571') })
-  const result = await output.play('clip.wav')
-  assert.equal(result.fallback, false)
-  assert.equal(state.played[0].device, 'SB571')
+test('a play never waits for a reconnect: it goes to the Mac now, the speaker is used once back', async () => {
+  const { state, output } = setup({ outputs: ['MacBook Air Speakers'], current: 'MacBook Air Speakers', onConnect: (s) => { if (!s.outputs.includes('SB571')) s.outputs.push('SB571') } })
+  const first = await output.play('clip.wav')
+  assert.equal(first.fallback, true)
+  await output.whenReconnected()
+  assert.equal(state.current, 'SB571')
+  const second = await output.play('next.wav')
+  assert.equal(second.fallback, false)
+  assert.equal(state.played[1].device, 'SB571')
 })
 
 test('the health check reconnects a dropped speaker and repins output, logging both', async () => {
-  const { state, output } = setup({ outputs: ['MacBook Air Speakers'], current: 'MacBook Air Speakers', onConnect: (s) => s.outputs.push('SB571') })
-  assert.equal(await output.healthCheck(), true)
+  const { state, output } = setup({ outputs: ['MacBook Air Speakers'], current: 'MacBook Air Speakers', input: 'SB571', onConnect: (s) => { if (!s.outputs.includes('SB571')) s.outputs.push('SB571') } })
+  assert.equal(await output.healthCheck(), false)
+  assert.equal(await output.whenReconnected(), true)
   assert.equal(state.current, 'SB571')
-  assert.deepEqual(state.rows.filter((r) => ['speaker_lost', 'reconnected'].includes(r.kind)).map((r) => r.kind), ['speaker_lost', 'reconnected'])
-  const gone = setup({ outputs: ['MacBook Air Speakers'] })
-  assert.equal(await gone.output.healthCheck(), false)
+  assert.equal(state.input, 'MacBook Air Microphone')
+  const kinds = state.rows.map((r) => r.kind)
+  assert.ok(kinds.indexOf('speaker_lost') < kinds.indexOf('reconnected'))
+  assert.match(state.rows.find((r) => r.kind === 'reconnected').detail, /Back after/)
+})
+
+test('it keeps retrying through failures, disconnecting first on every other try', async () => {
+  let attempts = 0
+  const { state, output } = setup({ outputs: ['MacBook Air Speakers'], current: 'MacBook Air Speakers', onConnect: (s) => { attempts++; if (attempts === 9 && !s.outputs.includes('SB571')) s.outputs.push('SB571') } })
+  await output.healthCheck()
+  assert.equal(await output.whenReconnected(), true)
+  const blue = state.calls.filter((c) => c.startsWith('blueutil'))
+  assert.deepEqual(blue.slice(0, 3).map((c) => c.split(' ')[1]), ['--connect', '--disconnect', '--connect'])
+  assert.ok(state.rows.filter((r) => r.kind === 'reconnect_attempt').length >= 5)
+})
+
+test('a failing connect command is logged and retried, and stop() ends the retries', async () => {
+  const rows = []
+  let connects = 0
+  const output = createBluetoothOutput({
+    speakerName: 'SB571', speakerAddress: 'a', log: () => {}, writeLog: (r) => rows.push(r), volume: null,
+    reconnectDelaysMs: [1], connectSettleMs: 1, sleep: () => new Promise((r) => setImmediate(r)),
+    run: async (c, a) => {
+      if (c === 'blueutil') { if (a[0] === '--connect') connects++; throw new Error('timed out') }
+      return a[0] === '-a' ? 'Mac Speakers' : 'Mac'
+    },
+  })
+  await output.healthCheck()
+  while (connects < 3) await new Promise((r) => setImmediate(r))
+  const retrying = output.whenReconnected()
+  output.stop()
+  assert.equal(await retrying, false)
+  assert.ok(rows.some((r) => r.kind === 'reconnect_failed'))
 })
 
 test('two plays run one after the other and never overlap', async () => {
@@ -107,6 +144,7 @@ test('the keep-alive plays quietly when idle, and stays out of the way when not'
   assert.deepEqual(state.played.map((p) => p.file), ['keepalive.wav'])
   const gone = setup({ outputs: ['MacBook Air Speakers'] })
   await gone.output.keepAlive()
+  gone.output.stop()
   assert.equal(gone.state.played.length, 0, 'no keep-alive through the Mac speaker')
 })
 
@@ -147,17 +185,18 @@ test('the health check spots 8 kHz call quality and fixes the input', async () =
   assert.equal(healthy.state.rows.length, 0)
 })
 
-test('the output and input are both re-pinned after a reconnect', async () => {
-  const { state, output } = setup({ outputs: ['MacBook Air Speakers'], current: 'MacBook Air Speakers', input: 'SB571', onConnect: (s) => s.outputs.push('SB571') })
-  assert.equal(await output.healthCheck(), true)
-  assert.equal(state.current, 'SB571')
-  assert.equal(state.input, 'MacBook Air Microphone')
-})
-
 test('the sample rate comes from the output entry, not the speaker mic that macOS lists first', () => {
   // Shape copied from real `system_profiler SPAudioDataType` output on this Mac.
   const report = 'Audio:\n\n    Devices:\n\n        MacBook Air Microphone:\n\n          Input Channels: 1\n          Current SampleRate: 48000\n\n        SB571:\n\n          Input Channels: 1\n          Manufacturer: Apple Inc.\n          Current SampleRate: 8000\n          Transport: Bluetooth\n\n        SB571:\n\n          Default Output Device: Yes\n          Output Channels: 2\n          Current SampleRate: 44100\n          Transport: Bluetooth\n'
   assert.equal(sampleRateOf(report, 'SB571'), 44100)
   assert.equal(sampleRateOf(report.replace('44100', '8000'), 'SB571'), 8000)
   assert.equal(sampleRateOf(report, 'Missing'), null)
+})
+
+test('every play also checks the sample rate, and an 8 kHz speaker gets logged', async () => {
+  const { state, output } = setup({ rate: 8000 })
+  await output.play('clip.wav')
+  await new Promise((r) => setTimeout(r, 10))
+  assert.ok(state.calls.includes('system_profiler SPAudioDataType'))
+  assert.ok(state.rows.some((r) => r.kind === 'call_quality'))
 })

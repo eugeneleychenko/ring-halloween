@@ -57,7 +57,7 @@ export const config = {
   bluetoothSpeakerName: process.env.BLUETOOTH_SPEAKER_NAME || null,
   bluetoothSpeakerAddress: process.env.BLUETOOTH_SPEAKER_ADDRESS || null,
   bluetoothVolume: process.env.BLUETOOTH_VOLUME === 'unchanged' ? null : num('BLUETOOTH_VOLUME', 80),
-  bluetoothKeepAliveMs: num('BLUETOOTH_KEEPALIVE_MS', 180000),
+  bluetoothKeepAliveMs: num('BLUETOOTH_KEEPALIVE_MS', 120000),
   bluetoothHealthCheckMs: num('BLUETOOTH_HEALTH_CHECK_MS', 30000),
   deviceName: process.env.RING_DEVICE_NAME || null,
   deviceId: process.env.RING_DEVICE_ID || null,
