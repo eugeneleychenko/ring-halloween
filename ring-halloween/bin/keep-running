@@ -1,10 +1,25 @@
 #!/bin/bash
-# Keeps the doorbell program running all evening. If it dies, this logs that and starts
-# it again. Ctrl-C, or the program finishing normally, stops the loop for good.
+# Keeps the doorbell program running all evening. If it dies, or freezes and stops
+# updating its heartbeat file, this logs that and starts it again. Ctrl-C, or the
+# program finishing normally, stops the loop for good.
 cd "$(dirname "$0")/.." || exit 1
-log="${MEASUREMENTS_DIR:-measurements}/restarts.csv"
+dir="${MEASUREMENTS_DIR:-measurements}"
+log="$dir/restarts.csv"
+heartbeat="$dir/heartbeat"
 delay="${RESTART_DELAY_SECONDS:-10}"
-mkdir -p "$(dirname "$log")"
+max_age="${HEARTBEAT_MAX_AGE_SECONDS:-180}"
+mkdir -p "$dir"
+# Only one loop at a time: two would race to restart the program.
+lock="$dir/keep-running.pid"
+if ! ( set -o noclobber; echo $$ > "$lock" ) 2>/dev/null; then
+  owner=$(cat "$lock" 2>/dev/null)
+  if [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null && ps -p "$owner" -o command= | grep -q keep-running; then
+    echo "[keep-running] Already running as process $owner. Stop that one first." >&2
+    exit 1
+  fi
+  echo $$ > "$lock"
+fi
+trap 'rm -f "$lock"' EXIT
 [ -s "$log" ] || echo "at,exit_code,restart_number" > "$log"
 restarts=0
 child=""
@@ -18,10 +33,26 @@ while true; do
     bin/node24 src/cli/start.js &
   fi
   child=$!
-  wait "$child"
-  code=$?
+  started=$(date +%s)
+  code=""
+  while kill -0 "$child" 2>/dev/null; do
+    sleep 2
+    # It may have exited during the sleep: that is an exit, not a freeze.
+    kill -0 "$child" 2>/dev/null || break
+    last=$(stat -f %m "$heartbeat" 2>/dev/null || echo 0)
+    [ "$last" -lt "$started" ] && last=$started
+    if [ $(( $(date +%s) - last )) -gt "$max_age" ]; then
+      echo "[keep-running] No heartbeat for over $max_age s: restarting a frozen program." >&2
+      kill -9 "$child" 2>/dev/null
+      code="hung"
+      break
+    fi
+  done
+  wait "$child" 2>/dev/null
+  status=$?
   child=""
-  if [ "$code" -eq 0 ] || [ "$code" -eq 130 ]; then
+  [ -n "$code" ] || code=$status
+  if [ "$code" = "0" ] || [ "$code" = "130" ]; then
     exit 0
   fi
   restarts=$((restarts + 1))

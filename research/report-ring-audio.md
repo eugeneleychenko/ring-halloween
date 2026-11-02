@@ -14,7 +14,7 @@ Why "go":
 
 Why only "conditional":
 - I found no published latency or success-rate figures for file playback.
-- Several things that would break it can only be checked on Eugene's own account and doorbell (see the hardware questions at the end).
+- Several things that would break it can only be checked on the owner's own account and doorbell (see the hardware questions at the end).
 - The library's npm release is 8 months old. Fixes that matter here exist only in `main` (see Risks).
 
 ## 1. ring-client-api (dgreif/ring): current state
@@ -135,7 +135,7 @@ Implementation notes [U, design]:
 6. Account state:
    - E2EE off?
    - Mode settings leave live view enabled? (Otherwise 14.3.0 throws.)
-   - Is Eugene's phone in live view at the same time, and does that conflict?
+   - Is the owner's phone in live view at the same time, and does that conflict?
    - Does a doorbell press (chime) interrupt an active session?
 7. Does a session started on the motion event block or delay the next motion event? (Expected yes, per the ring-mqtt wiki.)
 8. Battery: drain per session, and does the doorbell refuse live view at low battery?

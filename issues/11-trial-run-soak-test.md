@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Type | HITL (needs Eugene present) |
+| Type | HITL (needs the owner present) |
 | Status | blocked |
 | Assignee | ring-worker |
 | Labels | needs-triage |
@@ -13,7 +13,7 @@ RFP: `../ring-halloween-rfp.docx` (scope items 1-7, Addendum A). Research: `../f
 
 ## Scope note 2026-10-31
 
-Nobody is home on Halloween night. The soak test is therefore the most important test in the project: the system must run unattended for the whole evening with no restarts. Add: a watchdog that relaunches the process if it dies, a startup self-check that refuses to start quietly if Ring, speaker, input device, sample rate, Gemini gate or clips are wrong, and a log Eugene can read from his phone afterwards.
+Nobody is home on Halloween night. The soak test is therefore the most important test in the project: the system must run unattended for the whole evening with no restarts. Add: a watchdog that relaunches the process if it dies, a startup self-check that refuses to start quietly if Ring, speaker, input device, sample rate, Gemini gate or clips are wrong, and a log the owner can read from his phone afterwards.
 
 ## What to build
 

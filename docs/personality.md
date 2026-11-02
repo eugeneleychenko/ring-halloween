@@ -131,11 +131,18 @@ Reject and fall back to a 2b line if the comment:
 - mentions "watch", "see you", "recording", "camera", "inside", "closer"
 - is identical to the last comment played (avoid repeats in a group arriving in waves)
 
+## 4a. Specificity rule (added 2026-10-31 after the first live walk-ups)
+
+Generic lines ("a shadowy visitor brings Halloween spirit") make visitors feel unseen. Every comment must contain **one concrete thing the camera actually saw**: a prop, a bucket, a scooter, a hat, a mask, a cape colour, how many people, what they are doing. Objects, colours, counts and actions are allowed; bodies, age and identity are not. Implementation: the Gemini schema lists 2-3 `observations` before `costume` and `comment`, and the comment must use at least one of them. Replace "if you cannot tell the costume, compliment the spooky look" with "name the most specific thing you can see". Examples:
+- "Two of you, and one has a wand already raised. The door demon is outnumbered! Happy Halloween!"
+- "A pumpkin bucket and a scooter? Fast AND prepared. Grab your treats, speedy one!"
+- "A cape the colour of midnight, and a mask pushed up for candy. Smart. Happy Halloween!"
+
 ## 4b. Observed in #07 eval (public images, not Ring frames)
 - Lines are kind but repetitive: "Behold" and "magnificent" recur. Add to the prompt or post-filter: avoid reusing the opener or the main adjective of the previous comment (pipeline passes the last comment in). Candidate openers to rotate: "Ooooh", "Behold", "Well, well", "By my horns", "Great pumpkins", "Aha", "RAAAWR".
 - Max output tokens raised to 120 after one cut-off reply.
 
-## 5. Open decisions for Eugene
+## 5. Open decisions for the owner
 
 1. **Very young kids and the demon voice.** The words are gentle, but a deep demon voice through a speaker can still frighten a three-year-old. Options: (a) accept it, Halloween is spooky; (b) soften the voice settings (higher stability, slower speed, lower volume); (c) keep a second, friendlier voice (e.g. a witch or a goofy ghost) and let a human toggle it for the early-evening little-kid hour. The system must not pick a voice by guessing a child's age, so option (c) is a manual switch, not automatic.
 2. **SKIP behaviour.** Silence after the cover clip (default), or a 2e line? A 2e line is funnier but means Malyx talks to cars.

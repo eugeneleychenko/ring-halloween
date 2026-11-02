@@ -1,0 +1,70 @@
+#!/bin/bash
+# Read-only health check for the night run. Run it from anywhere: bin/health-check.
+# Reads BLUETOOTH_SPEAKER_NAME from the environment or .env.
+# Prints one line per check: OK or WARN, then a summary line "STATUS: HEALTHY" or "STATUS: PROBLEMS <n>".
+P="$(cd "$(dirname "$0")/.." && pwd)"
+SPK="${BLUETOOTH_SPEAKER_NAME:-$(grep -h "^BLUETOOTH_SPEAKER_NAME=" "$P/.env" "$P/../.env" 2>/dev/null | head -1 | cut -d= -f2-)}"
+M=$P/measurements
+now=$(date +%s)
+problems=0
+warn() { echo "WARN $1"; problems=$((problems+1)); }
+ok()   { echo "OK   $1"; }
+
+# 1. exactly one watchdog + one listener + caffeinate
+kr=$(pgrep -f "^/bin/bash bin/keep-running" | wc -l | tr -d ' ')
+st=$(pgrep -f "src/cli/start.js" | wc -l | tr -d ' ')
+cf=$(pgrep -f "caffeinate -dimsu" | wc -l | tr -d ' ')
+[ "$kr" = 1 ] && ok "watchdog running (1)" || warn "watchdog count=$kr (expected 1)"
+[ "$st" = 1 ] && ok "listener running (1)" || warn "listener count=$st (expected 1)"
+[ "$cf" -ge 1 ] && ok "caffeinate running" || warn "caffeinate not running (Mac may sleep)"
+
+# 2. heartbeat age
+if [ -f "$M/heartbeat" ]; then
+  age=$((now - $(stat -f %m "$M/heartbeat")))
+  [ "$age" -le 120 ] && ok "heartbeat ${age}s old" || warn "heartbeat ${age}s old"
+else warn "no heartbeat file"; fi
+
+# 3. push socket to Google (FCM) from the listener
+pid=$(pgrep -f "src/cli/start.js" | head -1)
+if [ -n "$pid" ] && lsof -a -p "$pid" -i -n -P 2>/dev/null | grep -q ":5228"; then ok "Ring push socket established"; else warn "listener has no push socket (events may not arrive)"; fi
+
+# 4. audio routing
+out=$(SwitchAudioSource -c -t output 2>/dev/null); in=$(SwitchAudioSource -c -t input 2>/dev/null)
+[ "$out" = "$SPK" ] && ok "output $SPK" || warn "output is '$out' ($SPK expected; visitors hear the Mac or nothing)"
+[ "$in" != "$SPK" ] && ok "input $in" || warn "input is the speaker mic (8 kHz call quality)"
+vol=$(osascript -e 'output volume of (get volume settings)' 2>/dev/null); [ -n "$vol" ] && { [ "$vol" -ge 60 ] && ok "volume $vol" || warn "volume $vol (<60)"; }
+
+# 5. restarts in the last hour
+if [ -f "$M/restarts.csv" ]; then
+  r=$(awk -F, -v cut="$(date -u -v-60M +%Y-%m-%dT%H:%M:%SZ)" 'NR>1 && $1>cut' "$M/restarts.csv" | wc -l | tr -d ' ')
+  [ "$r" -le 1 ] && ok "restarts last hour: $r" || warn "restarts last hour: $r"
+fi
+
+# 6. recent triggers: count, stock-line share, errors (last 60 min)
+if [ -f "$M/runs.csv" ]; then
+  python3 -I - "$M/runs.csv" <<'EOF'
+import csv,sys
+from datetime import datetime,timezone,timedelta
+rows=[r for r in csv.DictReader(open(sys.argv[1])) if not r['trigger_id'].startswith('sim')]
+cut=(datetime.now(timezone.utc)-timedelta(minutes=60)).strftime('%Y-%m-%dT%H:%M:%SZ')
+rec=[r for r in rows if r['trigger_at']>cut]
+n=len(rec); model=sum(1 for r in rec if r.get('comment_source')=='model'); fail=sum(1 for r in rec if r['success']!='true')
+last=rows[-1]['trigger_at'] if rows else 'none'
+print(f"OK   triggers last 60 min: {n} (gemini lines {model}, failed {fail}); last trigger {last}")
+if n>=3 and model==0: print("WARN no Gemini lines in last 60 min, everything is falling back to canned")
+if fail>0: print(f"WARN {fail} failed trigger(s) in last 60 min")
+if rec:
+    r=rec[-1]; print(f"     last said: {r['comment_text'][:100]}")
+EOF
+fi
+
+# 7. errors log
+[ -s "$M/errors.log" ] && warn "errors.log has $(wc -l < "$M/errors.log") lines; tail: $(tail -1 "$M/errors.log" | cut -c1-120)" || ok "no errors.log"
+
+# 8. Bluetooth fallback events in the last 30 min
+if [ -f "$M/bluetooth.csv" ]; then
+  fb=$(awk -F, -v cut="$(date -u -v-30M +%Y-%m-%dT%H:%M:%SZ)" 'NR>1 && $1>cut && ($2=="fallback" || $2=="reconnect_failed")' "$M/bluetooth.csv" | wc -l | tr -d ' ')
+  [ "$fb" = 0 ] && ok "no Bluetooth fallbacks last 30 min" || warn "Bluetooth fallback/reconnect_failed rows last 30 min: $fb"
+fi
+
+echo "STATUS: $([ "$problems" = 0 ] && echo HEALTHY || echo "PROBLEMS $problems")"

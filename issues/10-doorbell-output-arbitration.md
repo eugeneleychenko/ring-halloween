@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Type | AFK (can be built and verified without Eugene) |
+| Type | AFK (can be built and verified without the owner) |
 | Status | blocked |
 | Assignee | ring-worker |
 | Labels | needs-triage |
@@ -13,7 +13,7 @@ RFP: `../ring-halloween-rfp.docx` (scope items 1-7, Addendum A). Research: `../f
 
 ## Scope change 2026-10-31
 
-Per Eugene after the #05 ear test: default `output=bluetooth`. `doorbell` and `both` must still work as config options but get no further audio tuning. Acceptance criteria below still apply when the mode is enabled for testing.
+Per the owner after the #05 ear test: default `output=bluetooth`. `doorbell` and `both` must still work as config options but get no further audio tuning. Acceptance criteria below still apply when the mode is enabled for testing.
 
 ## What to build
 

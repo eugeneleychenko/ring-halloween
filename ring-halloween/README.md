@@ -2,7 +2,7 @@
 
 When someone comes to your door, your Ring doorbell spots them, an AI writes a short compliment about their costume, and a voice says it out loud.
 
-This is a test prototype. The AI comment and the voice work. The Ring connection and speakers are being added step by step (see `../issues/INDEX.md`).
+It ran unattended on Halloween night 2026. The build log is in `../issues/INDEX.md` and the design notes in `../docs/`.
 
 ## What you need
 
@@ -100,13 +100,13 @@ On Google's free tier, Google staff may read what you send. Photos from your doo
 2. Check that its plan is a paid tier, not "Free".
 3. In `.env`, set `GEMINI_BILLING_CONFIRMED=true`.
 
-**Status: confirmed.** The owner confirmed on 2026-10-31 that this key's project is on a paid Cloud Billing account. Google's API doesn't show this to a program, so a person has to check.
+Google's API does not expose the billing state to a program, so a person has to check this by hand.
 
 To test how well the AI spots people, put photos in a folder with a `label.csv` file (columns: `file, person_visible`) and run `npm run eval-gemini <folder>`.
 
 ## The voice
 
-The voice is Malyx, on the ElevenLabs Pro plan (1,800,000 characters a month).
+The default character is Malyx, a demon voice from the ElevenLabs voice library. Library voices need a paid ElevenLabs plan. Any voice works: put its ID in `ELEVENLABS_VOICE_ID` and change `CHARACTER_NAME` to match. See `../voice-samples/README.md` for how the voice was chosen.
 
 - **It costs 3x.** Malyx bills three credits per character, so a 25-word line costs about 420 credits. Repeated lines are saved and reused, so they cost nothing the second time.
 - **Pre-made clips.** `npm run build-clips` makes the 26 ready-to-play lines in `clips/`, listed by category in `clips/manifest.json`. Run it again after changing a line, the voice or a setting; only what changed gets remade.
@@ -123,7 +123,7 @@ npm run night
 
 It checks everything first and prints a loud warning if anything would stop it working. Then it stays running: if something goes wrong it logs the error and carries on, and if the program dies it starts again and notes that in `measurements/restarts.csv`. Press Ctrl-C to stop it.
 
-To run only the checks: `npm run check`.
+To run only the checks: `npm run check`. While it runs, `bin/health-check` prints a one-screen health summary (processes, heartbeat, audio routing, recent triggers) without touching anything.
 
 ## Private files
 

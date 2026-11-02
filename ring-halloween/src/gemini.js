@@ -35,6 +35,29 @@ Examples:
 - Someone carrying a pumpkin costume wearer. "A pumpkin! The finest pumpkin on the whole street. Happy Halloween, mighty pumpkin!"
 - Dark porch, nobody there. decision SKIP, costume empty, comment empty.`
 
+// Makes visitors feel seen: it must name concrete things before it writes the line.
+export const SPECIFIC_INSTRUCTION = SYSTEM_INSTRUCTION
+  .replace(
+    'Compliment the COSTUME, prop, character, or effort. If you cannot tell what the costume is, compliment the overall spooky look or Halloween spirit.',
+    'First list in observations two or three short, concrete things you can see: props, a bucket, a scooter, a hat, a mask, a cape colour, how many people there are, what they are doing. Objects, colours, counts and actions are fine. Never bodies, age or identity. The comment MUST use at least one observation word for word or nearly so. Name the most specific thing you can see, never a vague compliment about style or spirit. Observations must be things the visitor is wearing, carrying or doing. These belong to the house and are always in view, so never mention them: the pink scooter handlebar at the bottom of the picture, the paved walkway, the porch, railings, lawn, parked cars, and any pumpkin on the ground.',
+  )
+  .replace(
+    '\nExamples:\n',
+    '\nExamples:\n- Two visitors, one holding up a wand. "Two of you, and one has a wand already raised. The door demon is outnumbered! Happy Halloween!"\n- A pumpkin bucket and a scooter. "A pumpkin bucket and a scooter? Fast and prepared. Grab your treats, speedy one!"\n',
+  )
+
+const SPECIFIC_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    decision: { type: 'STRING', enum: ['COMMENT', 'SKIP'] },
+    observations: { type: 'ARRAY', items: { type: 'STRING' } },
+    costume: { type: 'STRING' },
+    comment: { type: 'STRING' },
+  },
+  required: ['decision', 'observations', 'costume', 'comment'],
+  propertyOrdering: ['decision', 'observations', 'costume', 'comment'],
+}
+
 const RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
@@ -92,11 +115,19 @@ export function stockLine(random = Math.random) {
   return lastStock
 }
 
-export function downscaleJpeg(jpegBuffer, { maxPx = config.geminiImageMaxPx, ffmpegPath = config.ffmpegPath } = {}) {
+// "x,y,w,h" as fractions of the frame. The crop goes first, so the visitor keeps more pixels.
+export function imageFilter(maxPx, crop) {
+  const scale = `scale=w='min(${maxPx},iw)':h='min(${maxPx},ih)':force_original_aspect_ratio=decrease`
+  if (!crop) return scale
+  const [x, y, w, h] = crop.split(',').map(Number)
+  return `crop=w=iw*${w}:h=ih*${h}:x=iw*${x}:y=ih*${y},${scale}`
+}
+
+export function downscaleJpeg(jpegBuffer, { maxPx = config.geminiImageMaxPx, ffmpegPath = config.ffmpegPath, crop = config.geminiCrop } = {}) {
   return new Promise((resolve, reject) => {
     const ffmpeg = spawn(ffmpegPath, [
       '-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', '-frames:v', '1',
-      '-vf', `scale=w='min(${maxPx},iw)':h='min(${maxPx},ih)':force_original_aspect_ratio=decrease`,
+      '-vf', imageFilter(maxPx, crop),
       '-q:v', '6', '-f', 'image2pipe', '-vcodec', 'mjpeg', 'pipe:1',
     ], { stdio: ['pipe', 'pipe', 'pipe'] })
     const chunks = []
@@ -122,7 +153,7 @@ export function buildRequest(jpegsForModel, cfg = config, { previousComment = nu
     ? ` Your previous line was: "${previousComment}". Use a different opening word and a different main adjective this time.`
     : ''
   return {
-    systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+    systemInstruction: { parts: [{ text: cfg.geminiPrompt === 'specific' ? SPECIFIC_INSTRUCTION : SYSTEM_INSTRUCTION }] },
     contents: [{
       role: 'user',
       parts: [
@@ -136,7 +167,7 @@ export function buildRequest(jpegsForModel, cfg = config, { previousComment = nu
       mediaResolution: `MEDIA_RESOLUTION_${cfg.geminiMediaResolution.toUpperCase()}`,
       thinkingConfig: { thinkingLevel: cfg.geminiThinkingLevel },
       responseMimeType: 'application/json',
-      responseSchema: RESPONSE_SCHEMA,
+      responseSchema: cfg.geminiPrompt === 'specific' ? SPECIFIC_SCHEMA : RESPONSE_SCHEMA,
     },
     safetySettings: SAFETY_SETTINGS,
   }
@@ -178,7 +209,7 @@ function interpret(json, state) {
   if (parsed.decision !== 'COMMENT') return { failure: 'bad_decision' }
   const rejected = rejectReason(parsed.comment, state)
   if (rejected) return { failure: rejected, rejectedComment: parsed.comment }
-  return { decision: 'COMMENT', comment: parsed.comment.trim(), costume: parsed.costume ?? '' }
+  return { decision: 'COMMENT', comment: parsed.comment.trim(), costume: parsed.costume ?? '', observations: parsed.observations ?? [] }
 }
 
 function logResult(result, cfg) {
@@ -218,7 +249,7 @@ export async function generateComment(jpegBuffer, {
     else if (!cfg.geminiBillingConfirmed && !publicImage) result = stock('billing_not_confirmed')
     else {
       const frames = Array.isArray(jpegBuffer) ? jpegBuffer : [jpegBuffer]
-      const scaled = await Promise.all(frames.map((frame) => downscaleJpeg(frame, { maxPx: cfg.geminiImageMaxPx, ffmpegPath: cfg.ffmpegPath })))
+      const scaled = await Promise.all(frames.map((frame) => downscaleJpeg(frame, { maxPx: cfg.geminiImageMaxPx, ffmpegPath: cfg.ffmpegPath, crop: cfg.geminiCrop })))
       const body = buildRequest(scaled, cfg, { previousComment: speech.lastComment })
       const outcome = interpret(await callGemini(body, { cfg, fetchImpl, signal: controller.signal }), speech)
       result = outcome.failure
@@ -233,7 +264,11 @@ export async function generateComment(jpegBuffer, {
   }
   result.ms = Date.now() - started
   if (result.source === 'stock') log(`[gemini] stock line used: ${result.reason}`)
-  logResult(result, cfg)
+  try {
+    logResult(result, cfg)
+  } catch (error) {
+    log(`[gemini] could not log: ${error.message}`)
+  }
   return result
 }
 

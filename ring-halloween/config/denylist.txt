@@ -1,7 +1,7 @@
 # Words and phrases Gemini's comment must never contain (personality.md 2i and section 4).
 # Format: topic | word or phrase. One per line, case-insensitive, whole words only.
 # Deliberately broad: a false alarm costs one stock line, a miss says something unkind to a child.
-body | body, bodies, figure, physique, fat, fatty, skinny, thin, chubby, plump, slim, overweight, underweight, weight, heavy, tall, short, height, size, tiny, big guy, belly, tummy
+body | posture, stooping, stoop, hunched, slouching, limping, limp, wheelchair, crutches, body, bodies, figure, physique, fat, fatty, skinny, thin, chubby, plump, slim, overweight, underweight, weight, heavy, tall, short, height, size, tiny, big guy, belly, tummy
 age | age, aged, old, older, elderly, young, younger, youth, teen, teens, teenager, toddler, baby, babies, child, children, kid, kids, little, years old, kindergarten, school, grade, preschool
 gender | boy, boys, girl, girls, woman, women, lady, ladies, gentleman, guy, guys, male, female, he, she, him, her, his, hers
 race | race, racial, ethnic, ethnicity, asian, african, black person, black people, white person, white people, latino, latina, hispanic, caucasian, mexican, indian, arab, native american

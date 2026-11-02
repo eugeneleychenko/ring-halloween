@@ -6,11 +6,11 @@ Vertical slices of the RFP and Addendum A. Each issue is a complete, demoable pa
 
 - **ring-worker** picks the lowest-numbered issue whose status is `ready`, sets Status to `in-progress` in the issue file, builds it, ticks the acceptance criteria it has verified, sets Status to `validate`, and messages the chief-of-staff session (`ring-CoS`) with evidence (CSV rows, log excerpts, screenshots).
 - **ring-CoS** validates against the acceptance criteria, writes the outcome in the Validation log, sets Status to `done` or back to `in-progress` with notes, and flips dependants from `blocked` to `ready`.
-- HITL issues need Eugene; the worker builds as far as possible, then states exactly what is needed and stops.
+- HITL issues need the owner; the worker builds as far as possible, then states exactly what is needed and stops.
 - Issues #07 and #08 can run in parallel with #02-#06 once API keys are available.
 - 2026-10-31 decision: nobody home on the night; motion-only trigger; unattended operation and the #11 soak test are the priority.
 - 2026-10-31 decision: doorbell speaker is a conditional go (works, quiet, crackly). Bluetooth speaker is the primary output for the night; doorbell/both stay as options.
-- #13 is Eugene's UAT script. It runs three times: after #04 (does it hear me), after #09 (does it see me), after #10 or #09 (would I run it on Halloween). The `npm run uat` wrapper can be built any time after #01.
+- #13 is the owner's UAT script. It runs three times: after #04 (does it hear me), after #09 (does it see me), after #10 or #09 (would I run it on Halloween). The `npm run uat` wrapper can be built any time after #01.
 
 ## Board
 
@@ -28,7 +28,7 @@ Vertical slices of the RFP and Addendum A. Each issue is a complete, demoable pa
 | [#10 Doorbell output and both-mode arbitration with continuous audio](10-doorbell-output-arbitration.md) | AFK | blocked | #05, #09 |
 | [#11 20-trial measurement run and 3-hour soak test](11-trial-run-soak-test.md) | HITL | blocked | #09, #10 |
 | [#12 Feasibility report, non-developer README, and demo video](12-report-readme-video.md) | HITL | blocked | #11 |
-| [#13 UAT: Eugene's walk-up acceptance script](13-uat-walkup-script.md) | HITL | ready (cp1) | #04 (cp1), #09 (cp2), #10 or #09 (cp3) |
+| [#13 UAT: The owner's walk-up acceptance script](13-uat-walkup-script.md) | HITL | ready (cp1) | #04 (cp1), #09 (cp2), #10 or #09 (cp3) |
 | [#14 Visitor log: what the camera saw and what Malyx said](14-visitor-log.md) | AFK | blocked | #09 (generator can start now) |
 
 ## Dependency graph

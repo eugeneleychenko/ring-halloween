@@ -148,6 +148,10 @@ export async function getCloserFrame(event, { camera = event.camera, cfg = confi
  */
 export async function getVisitorFrames(event, { camera = event.camera, cfg = config, fast = getFreshSnapshot, closer = getCloserFrame, closerWaitMs = cfg.closerFrameWaitMs } = {}) {
   const fastAttempt = fast(event, { camera, cfg, routes: ['uuid', 'forced'] })
+  if (cfg.closerFrame === false) {
+    const image = await fastAttempt
+    return { ...image, frames: [image] }
+  }
   const closerAttempt = closer(event, { camera, cfg })
   const timedOut = new Promise((resolve) => { setTimeout(() => resolve(null), closerWaitMs).unref?.() })
   const [fastResult, closerResult] = await Promise.all([
@@ -155,6 +159,8 @@ export async function getVisitorFrames(event, { camera = event.camera, cfg = con
     Promise.race([closerAttempt, timedOut]).catch((error) => error),
   ])
   closerAttempt.catch(() => {})
+  if (closerResult instanceof Error) console.warn(`[closer] ${event.id} failed: ${closerResult.message}`)
+  if (closerResult === null) console.warn(`[closer] ${event.id} too slow, gave up after ${closerWaitMs} ms`)
   const frames = [fastResult, closerResult].filter((frame) => frame && !(frame instanceof Error))
   if (!frames.length) {
     const reasons = [fastResult, closerResult].map((r) => (r instanceof Error ? r.message : 'later frame too slow')).join('; ')

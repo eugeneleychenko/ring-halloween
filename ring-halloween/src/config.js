@@ -35,7 +35,7 @@ export const config = {
   geminiApiKey: process.env.GEMINI_API_KEY || null,
   elevenLabsApiKey: process.env.ELEVENLABS_API_KEY || null,
   elevenLabsVoiceId: process.env.ELEVENLABS_VOICE_ID || null,
-  // Eugene's open decisions (personality.md section 5). Each is a one-line change in .env.
+  // The owner's open decisions (docs/personality.md section 5). Each is a one-line change in .env.
   characterName: process.env.CHARACTER_NAME || 'Malyx',
   skipBehavior: process.env.SKIP_BEHAVIOR || 'silence',
   signOff: process.env.SIGN_OFF === 'true',
@@ -43,6 +43,8 @@ export const config = {
   geminiBillingConfirmed: process.env.GEMINI_BILLING_CONFIRMED === 'true',
   // 'best' sends the later frame alone. In early tests, sending both caused wrong SKIPs.
   geminiFrames: process.env.GEMINI_FRAMES || 'best',
+  geminiPrompt: process.env.GEMINI_PROMPT || 'plain',
+  geminiCrop: process.env.GEMINI_CROP || null,
   geminiModel: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
   geminiThinkingLevel: process.env.GEMINI_THINKING_LEVEL || 'minimal',
   geminiMediaResolution: process.env.GEMINI_MEDIA_RESOLUTION || 'low',
@@ -82,6 +84,7 @@ export const config = {
   snapshotUuidWaitBatteryMs: num('SNAPSHOT_UUID_WAIT_BATTERY_MS', 2000),
   snapshotUuidWaitWiredMs: num('SNAPSHOT_UUID_WAIT_WIRED_MS', 500),
   snapshotUuidToleranceMs: num('SNAPSHOT_UUID_TOLERANCE_MS', 2000),
+  closerFrame: process.env.CLOSER_FRAME !== 'false',
   closerFrameDelayMs: num('CLOSER_FRAME_DELAY_MS', 2000),
   closerFrameWaitMs: num('CLOSER_FRAME_WAIT_MS', 5000),
   snapshotRouteTimeoutMs: num('SNAPSHOT_ROUTE_TIMEOUT_MS', 4000),

@@ -99,6 +99,12 @@ test('Gemini gets both frames when both exist, the later one counts as the snaps
   assert.equal(result.frames.length, 2)
 })
 
+test('with the later frame off, nothing waits for it and no call opens', async () => {
+  const result = await getVisitorFrames(event(), { camera: {}, cfg: { ...cfg, closerFrame: false }, fast: async () => frameFrom('uuid'), closer: async () => assert.fail('must not run') })
+  assert.equal(result.source, 'uuid')
+  assert.equal(result.frames.length, 1)
+})
+
 test('either frame alone is enough, a slow later frame is not waited for, and none at all is an error', async () => {
   const opts = { camera: {}, cfg, closerWaitMs: 30 }
   assert.equal((await getVisitorFrames(event(), { ...opts, fast: async () => frameFrom('uuid'), closer: async () => { throw new Error('no call') } })).source, 'uuid')
@@ -195,7 +201,7 @@ test('a checkpoint writes the agreed CSV and a scorecard, including a scenario w
   })
   const text = fs.readFileSync(file, 'utf8')
   assert.equal(text.split('\n')[0], UAT_COLUMNS.join(','))
-  assert.deepEqual(UAT_COLUMNS, ['checkpoint', 'scenario', 'trigger_id', 'event_received_at', 'first_audio_at', 'comment_at', 'output', 'gemini_decision', 'comment_text', 'pass', 'eugene_note'])
+  assert.deepEqual(UAT_COLUMNS, ['checkpoint', 'scenario', 'trigger_id', 'event_received_at', 'first_audio_at', 'comment_at', 'output', 'gemini_decision', 'comment_text', 'pass', 'owner_note'])
   const rows = parseCsv(text)
   assert.equal(rows.length, 5)
   assert.equal(rows[0].comment_text, 'hello')

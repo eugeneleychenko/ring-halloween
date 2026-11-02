@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Type | HITL (needs Eugene present) |
+| Type | HITL (needs the owner present) |
 | Status | done |
 | Assignee | ring-worker |
 | Labels | needs-triage |
@@ -13,9 +13,9 @@ RFP: `../ring-halloween-rfp.docx` (scope items 1-7, Addendum A). Research: `../f
 
 ## What to build
 
-`npm run auth` walks Eugene through Ring login (email, password, 2FA code) once and stores the refresh token locally. `npm run devices` lists every Ring device with `id`, `description`, `kind`, model, `power_mode` (battery/wired), firmware, and whether live view is disabled by the current Mode or E2EE is on.
+`npm run auth` walks the owner through Ring login (email, password, 2FA code) once and stores the refresh token locally. `npm run devices` lists every Ring device with `id`, `description`, `kind`, model, `power_mode` (battery/wired), firmware, and whether live view is disabled by the current Mode or E2EE is on.
 
-Ring credentials: Eugene's Ring login is stored in 1Password; the item link is in `../.env` as `RING_1PASSWORD_ITEM`. Open it with Claude in Chrome (the browser extension) when the auth script is ready, and ask Eugene for the 2FA code at that moment. Do not search his other files for credentials.
+Ring credentials: the owner signs in interactively with `npm run auth` (email, password, 2FA). Nothing but the refresh token is stored, in `ring-token.json`, which is gitignored.
 
 ## Acceptance criteria
 
@@ -31,4 +31,4 @@ Ring credentials: Eugene's Ring login is stored in 1Password; the item link is i
 
 ## Validation log
 
-**2026-10-31, ring-CoS: DONE.** Eugene ran `npm run auth` in Terminal.app (the `!` prefix in Claude Code has no TTY; README updated to say so). `ring-token.json` exists, mode 600, 1274 bytes. `npm run devices` ran without prompting (token path works) and wrote `measurements/device.json`. Front Door: model "Doorbell Pro", kind `lpd_v2` (Ring Video Doorbell Pro, 1st gen), wired, no battery, canTakeSnapshotWhileRecording=true, live_view_disabled=false, motion on, E2EE off (encryption_group id null), online. Three other cams on the account (Garage osprey_floodlight, Side and Garden floodlight_v2) are not used. Hourly token-refresh persistence is left open for #03 to prove over a long run.
+**2026-10-31, ring-CoS: DONE.** The owner ran `npm run auth` in Terminal.app (the `!` prefix in Claude Code has no TTY; README updated to say so). `ring-token.json` exists, mode 600, 1274 bytes. `npm run devices` ran without prompting (token path works) and wrote `measurements/device.json`. Front Door: model "Doorbell Pro", kind `lpd_v2` (Ring Video Doorbell Pro, 1st gen), wired, no battery, canTakeSnapshotWhileRecording=true, live_view_disabled=false, motion on, E2EE off (encryption_group id null), online. Hourly token-refresh persistence is left open for #03 to prove over a long run.

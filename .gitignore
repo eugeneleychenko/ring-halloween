@@ -1,2 +1,17 @@
+# Secrets and tokens: never commit
 .env
-ring-token.json
+.env.*
+!.env.example
+**/ring-token.json*
+**/.ring.lock
+
+# Door photos, logs and generated audio stay on the local Mac
+**/snapshots/
+**/measurements/
+**/clips/
+**/eval/
+
+node_modules/
+.DS_Store
+*.log
+.claude/

@@ -51,6 +51,21 @@ test('two frames go in order, with the later one marked as the costume view', as
   assert.equal(sent.contents[0].parts.filter((p) => p.inlineData).length, 2)
 })
 
+test('the specific prompt asks for observations first and is opt-in, with an optional crop', async () => {
+  const plain = buildRequest(JPEG, config)
+  assert.deepEqual(plain.generationConfig.responseSchema.propertyOrdering, ['decision', 'costume', 'comment'])
+  const specific = buildRequest(JPEG, { ...config, geminiPrompt: 'specific' })
+  assert.deepEqual(specific.generationConfig.responseSchema.propertyOrdering, ['decision', 'observations', 'costume', 'comment'])
+  const text = specific.systemInstruction.parts[0].text
+  assert.match(text, /MUST use at least one observation/)
+  assert.match(text, /wand already raised/)
+  assert.ok(!text.includes('overall spooky look'))
+  assert.match(text, /Never: mention body/)
+  const cropped = await downscaleJpeg(JPEG, { crop: '0.4,0.25,0.6,0.75' })
+  const size = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', 'pipe:0'], { input: cropped, encoding: 'utf8' }).stdout.trim()
+  assert.equal(size, '384,270')
+})
+
 test('images are downscaled to 768 px on the long side', async () => {
   const big = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=1920x1080', '-frames:v', '1', '-f', 'image2pipe', '-vcodec', 'mjpeg', 'pipe:1'], { maxBuffer: 1e8 }).stdout
   const small = await downscaleJpeg(big)
@@ -68,7 +83,7 @@ for (const [text, reason] of [
   ['You look like Taylor Swift', 'forbidden:identity'],
   ['A costume perfect for an Asian warrior', 'forbidden:race'],
   ['What a nice man in a cape', 'forbidden:gender'],
-  // personality.md 2i
+  // docs/personality.md 2i
   ['Wow, you must be in kindergarten by now', 'forbidden:age'],
   ['Those glasses go well with your wizard robe', 'forbidden:face'],
   ["You're so pretty in that spooky costume", 'forbidden:looks'],

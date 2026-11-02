@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Type | AFK (can be built and verified without Eugene) |
+| Type | AFK (can be built and verified without the owner) |
 | Status | in-progress |
 | Assignee | ring-worker |
 | Labels | needs-triage |

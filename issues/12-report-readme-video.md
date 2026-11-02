@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Type | HITL (needs Eugene present) |
+| Type | HITL (needs the owner present) |
 | Status | blocked |
 | Assignee | ring-worker |
 | Labels | needs-triage |

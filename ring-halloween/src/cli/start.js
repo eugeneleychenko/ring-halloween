@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import fs from 'node:fs'
 import { startBluetooth } from '../audio/index.js'
 import { config, measurementPath } from '../config.js'
 import { appendCsvRow } from '../csv.js'
@@ -15,6 +16,12 @@ if (!loadToken()) {
   console.log('You can try the chain without Ring at any time: `npm run simulate`.')
   process.exit(0)
 }
+// Proves the event loop is running, so that keep-running can restart a frozen program.
+// It can't prove Ring's push connection is healthy: the library doesn't expose that.
+const beat = () => fs.closeSync(fs.openSync(heartbeatFile, 'w'))
+const heartbeatFile = measurementPath('heartbeat')
+beat()
+setInterval(beat, 30000).unref()
 // Keeps the Mac awake for as long as this process runs.
 spawn('caffeinate', ['-dimsu', '-w', String(process.pid)], { stdio: 'ignore', detached: true }).unref()
 startGeminiWarmup()

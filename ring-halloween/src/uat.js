@@ -4,10 +4,10 @@ import { percentile } from './probe-summary.js'
 
 export const UAT_COLUMNS = [
   'checkpoint', 'scenario', 'trigger_id', 'event_received_at', 'first_audio_at', 'comment_at',
-  'output', 'gemini_decision', 'comment_text', 'pass', 'eugene_note',
+  'output', 'gemini_decision', 'comment_text', 'pass', 'owner_note',
 ]
 
-// `expect` drives the automatic suggestion. The final pass or fail is always Eugene's.
+// `expect` drives the automatic suggestion. The final pass or fail is always the owner's.
 const CP2_SCENARIOS = [
   { id: 1, text: 'Walk up in a clear costume, or holding an obvious prop such as a witch hat', expected: 'Cover clip in about 1 s, then a kind comment naming the costume, within 10 s of motion', expect: 'one_comment' },
   { id: 2, text: 'Walk up in plain clothes', expected: 'Cover clip, then a kind comment that never mentions body, age, size or who you are', expect: 'one_comment' },
@@ -60,7 +60,7 @@ export function suggestResult(scenario, runs) {
 /**
  * Runs one checkpoint. Everything that touches the door is passed in:
  * collectTriggers(scenario) resolves with the onTrigger results seen during a scenario,
- * and ask(question) reads Eugene's answer. A scenario with no trigger still gets a row.
+ * and ask(question) reads the owner's answer. A scenario with no trigger still gets a row.
  */
 export async function runCheckpoint(checkpoint, { collectTriggers, ask, output, log = console.log, file = measurementPath(`uat-${checkpoint}.csv`) }) {
   const definition = CHECKPOINTS[checkpoint]
@@ -80,7 +80,7 @@ export async function runCheckpoint(checkpoint, { collectTriggers, ask, output, 
       : `  Did it behave as expected? ${suggested === null ? '' : `The log suggests ${suggested ? 'yes' : 'NO'}. `}(y/n) `
     const pass = (await ask(prompt)).trim().toLowerCase().startsWith('y')
     const note = (await ask('  Any note? (Return to skip) ')).trim()
-    const base = { checkpoint, scenario: scenario.id, output: resolvedOutput, pass, eugene_note: note }
+    const base = { checkpoint, scenario: scenario.id, output: resolvedOutput, pass, owner_note: note }
     if (!runs.length) appendCsvRow(file, UAT_COLUMNS, base)
     for (const run of runs) {
       appendCsvRow(file, UAT_COLUMNS, {
@@ -98,7 +98,7 @@ export async function runCheckpoint(checkpoint, { collectTriggers, ask, output, 
   let closing = null
   if (definition.closing) {
     closing = (await ask(`\n${definition.closing}: `)).trim()
-    appendCsvRow(file, UAT_COLUMNS, { checkpoint, scenario: 'verdict', output: resolvedOutput, eugene_note: closing })
+    appendCsvRow(file, UAT_COLUMNS, { checkpoint, scenario: 'verdict', output: resolvedOutput, owner_note: closing })
   }
   const scorecard = buildScorecard(checkpoint, results, closing)
   log(`\n${scorecard}\n\nLog: ${file}`)

@@ -18,7 +18,7 @@ function setup({ outputs = ['SB571', 'MacBook Air Speakers'], current = 'SB571',
     throw new Error('unexpected')
   }
   const output = createBluetoothOutput({
-    speakerName: 'SB571', speakerAddress: '00:11:67:D3:78:E6', run, volume: 80,
+    speakerName: 'SB571', speakerAddress: 'AA:BB:CC:DD:EE:FF', run, volume: 80,
     player: async (file) => { state.played.push({ file, device: state.current }) },
     log: (m) => state.warnings.push(m), writeLog: (r) => state.rows.push(r), keepAliveMs: 1e6, healthCheckMs: 1e6, keepAliveFile: 'keepalive.wav',
     reconnectDelaysMs: [1, 1, 1, 1], connectSettleMs: 5, sleep: () => new Promise((r) => setImmediate(r)),
@@ -58,7 +58,7 @@ test('a failed switch is an error, never a silent play on the wrong device', asy
 test('an unreachable speaker tries a reconnect, then falls back to the Mac with a warning', async () => {
   const { state, output } = setup({ outputs: ['MacBook Air Speakers'], current: 'MacBook Air Speakers' })
   const result = await output.play('clip.wav')
-  assert.ok(state.calls.includes('blueutil --connect 00:11:67:D3:78:E6') || state.rows.some((r) => r.kind === 'reconnect_attempt'))
+  assert.ok(state.calls.includes('blueutil --connect AA:BB:CC:DD:EE:FF') || state.rows.some((r) => r.kind === 'reconnect_attempt'))
   output.stop()
   assert.equal(result.fallback, true)
   assert.equal(result.device, 'MacBook Air Speakers')

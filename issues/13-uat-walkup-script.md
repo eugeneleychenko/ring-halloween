@@ -1,10 +1,10 @@
-# #13 UAT: Eugene's walk-up acceptance script
+# #13 UAT: The owner's walk-up acceptance script
 
 | Field | Value |
 |---|---|
-| Type | HITL (Eugene at the door, ring-worker at the Mac, ring-CoS validating) |
+| Type | HITL (the owner at the door, ring-worker at the Mac, ring-CoS validating) |
 | Status | ready (checkpoint 1) |
-| Assignee | ring-worker (prepares), Eugene (performs) |
+| Assignee | ring-worker (prepares), the owner (performs) |
 | Labels | needs-triage |
 
 ## Parent
@@ -13,7 +13,7 @@ RFP section 6 (success criteria), Addendum A section A.6. Research: `../feasibil
 
 ## What to build
 
-A repeatable user-acceptance script that Eugene performs at his own door, with the system running unattended, so he can see and hear how it reacts. The same script runs at three checkpoints as the build matures, each time against a `measurements/uat-<checkpoint>.csv` log and a short written verdict from Eugene.
+A repeatable user-acceptance script that the owner performs at his own door, with the system running unattended, so he can see and hear how it reacts. The same script runs at three checkpoints as the build matures, each time against a `measurements/uat-<checkpoint>.csv` log and a short written verdict from the owner.
 
 ring-worker builds `npm run uat -- --checkpoint <1|2|3>`: it starts the system in the right mode, announces (on the Mac screen) each scenario and when to walk, records each trigger with the scenario label, and at the end prints a scorecard. ring-CoS validates the scorecard against the pass criteria below.
 
@@ -51,16 +51,16 @@ Mode: `output=both` (or `bluetooth` if the doorbell route failed). Run checkpoin
 | # | Scenario | Expected reaction |
 |---|---|---|
 | 9 | Walk up; listen for which speaker talks | Exactly one output plays the comment; the decision and reason are in the log |
-| 10 | Walk up while Eugene's phone has Ring live view open | Report what happens (conflict or not) |
+| 10 | Walk up while the owner's phone has Ring live view open | Report what happens (conflict or not) |
 | 11 | Leave it running 3 hours, then walk up | Still reacts; no re-auth, no speaker drop (overlaps #11 soak) |
 
 ## Acceptance criteria
 
-- [ ] `npm run uat -- --checkpoint N` exists, prompts scenario by scenario on screen, and writes `measurements/uat-N.csv` with `checkpoint, scenario, trigger_id, event_received_at, first_audio_at, comment_at, output, gemini_decision, comment_text, pass, eugene_note`
+- [ ] `npm run uat -- --checkpoint N` exists, prompts scenario by scenario on screen, and writes `measurements/uat-N.csv` with `checkpoint, scenario, trigger_id, event_received_at, first_audio_at, comment_at, output, gemini_decision, comment_text, pass, owner_note`
 - [ ] Checkpoint 1: scenarios 1-4 behave as expected; 5 is logged
-- [ ] Checkpoint 2: 1, 2, 3, 4, 7, 8 behave as expected; 5 and 6 are logged with a colour/infrared note; every comment text is kind and family-friendly on Eugene's read
-- [ ] Checkpoint 3: 9 behaves as expected; 10 and 11 are logged; Eugene answers "would I run this on Halloween night?" yes or no, with one sentence why
-- [ ] The scorecard for each checkpoint is sent to ring-CoS with the CSV and Eugene's notes; ring-CoS records the verdict in this file's Validation log
+- [ ] Checkpoint 2: 1, 2, 3, 4, 7, 8 behave as expected; 5 and 6 are logged with a colour/infrared note; every comment text is kind and family-friendly on the owner's read
+- [ ] Checkpoint 3: 9 behaves as expected; 10 and 11 are logged; the owner answers "would I run this on Halloween night?" yes or no, with one sentence why
+- [ ] The scorecard for each checkpoint is sent to ring-CoS with the CSV and the owner's notes; ring-CoS records the verdict in this file's Validation log
 
 ## Blocked by
 

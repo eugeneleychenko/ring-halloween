@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Type | AFK (can be built and verified without Eugene) |
+| Type | AFK (can be built and verified without the owner) |
 | Status | done |
 | Assignee | ring-worker |
 | Labels | needs-triage |
@@ -33,4 +33,4 @@ Gemini key is available as `GEMINI_API_KEY` in `../.env` (copied from an existin
 
 ## Validation log
 
-**2026-10-31, ring-CoS: DONE, one criterion open.** Verified: settings in src/gemini.js (3.5-flash-lite, thinkingLevel minimal, media resolution low, safety BLOCK_LOW_AND_ABOVE, 2.5 s timeout, stock fallback, warm-up); 17-line deny-list; billing gate `GEMINI_BILLING_CONFIRMED` in config with door snapshots withheld until true; 82/82 tests x3. Eval on 54 public images (colour + simulated grey, x2): SKIP specificity 100%, recall 96.6%, p50 1.14 s, p95 1.47 s. Accepted the worker's prompt revision (binary human-present test) and synced it into personality.md section 3. Billing: Eugene confirmed a paid Cloud Billing account on 2026-10-31 (AI Studio billing page); GEMINI_BILLING_CONFIRMED=true set in .env. the ≥100 real empty Ring frames wait on #06. Follow-up for #09: pass last comment into the prompt to reduce "Behold/magnificent" repeats.
+**2026-10-31, ring-CoS: DONE, one criterion open.** Verified: settings in src/gemini.js (3.5-flash-lite, thinkingLevel minimal, media resolution low, safety BLOCK_LOW_AND_ABOVE, 2.5 s timeout, stock fallback, warm-up); 17-line deny-list; billing gate `GEMINI_BILLING_CONFIRMED` in config with door snapshots withheld until true; 82/82 tests x3. Eval on 54 public images (colour + simulated grey, x2): SKIP specificity 100%, recall 96.6%, p50 1.14 s, p95 1.47 s. Accepted the worker's prompt revision (binary human-present test) and synced it into docs/personality.md section 3. Billing: The owner confirmed a paid Cloud Billing account on 2026-10-31 (AI Studio billing page); GEMINI_BILLING_CONFIRMED=true set in .env. the ≥100 real empty Ring frames wait on #06. Follow-up for #09: pass last comment into the prompt to reduce "Behold/magnificent" repeats.

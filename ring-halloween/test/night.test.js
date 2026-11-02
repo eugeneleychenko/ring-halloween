@@ -83,13 +83,28 @@ test('a real process survives a thrown error and a rejected promise', () => {
   assert.equal(fs.readFileSync(path.join(dir, 'errors.log'), 'utf8').trim().split('\n').filter((l) => /^\d{4}-/.test(l)).length, 2)
 })
 
+const loops = []
+// A loop left behind by a failed test would keep running after the test run ends.
+test.afterEach(() => {
+  for (const loop of loops.splice(0)) if (loop.exitCode === null) loop.kill('SIGKILL')
+})
+
 function runLoop(script, env = {}) {
   const dir = tempDir()
   const fake = path.join(dir, 'fake.sh')
   fs.writeFileSync(fake, script.replaceAll('$DIR', dir), { mode: 0o755 })
-  return { dir, child: spawn('bin/keep-running', [], { env: { ...process.env, MEASUREMENTS_DIR: dir, KEEP_RUNNING_COMMAND: fake, RESTART_DELAY_SECONDS: '0', ...env }, stdio: 'ignore' }) }
+  const child = spawn('bin/keep-running', [], { env: { ...process.env, MEASUREMENTS_DIR: dir, KEEP_RUNNING_COMMAND: fake, RESTART_DELAY_SECONDS: '0', ...env }, stdio: 'ignore' })
+  loops.push(child)
+  return { dir, child }
 }
 const closed = (child) => new Promise((resolve) => child.on('close', resolve))
+
+test('a clean exit during the watch sleep is an exit, not a freeze', async () => {
+  const { dir, child } = runLoop('#!/bin/bash\necho run >> $DIR/runs\nexit 0\n', { HEARTBEAT_MAX_AGE_SECONDS: '1' })
+  assert.equal(await closed(child), 0)
+  assert.equal(fs.readFileSync(path.join(dir, 'runs'), 'utf8').trim(), 'run')
+  assert.deepEqual(parseCsv(fs.readFileSync(path.join(dir, 'restarts.csv'), 'utf8')), [])
+})
 
 test('keep-running relaunches after a crash, logs it, and stops after a clean exit', async () => {
   const { dir, child } = runLoop('#!/bin/bash\nn=$(cat $DIR/n 2>/dev/null || echo 0); n=$((n+1)); echo $n > $DIR/n\n[ "$n" -lt 3 ] && exit 7\nexit 0\n')
@@ -106,4 +121,42 @@ test('keep-running stops for good on Ctrl-C and does not relaunch', async () => 
   assert.equal(await closed(child), 0)
   await new Promise((r) => setTimeout(r, 200))
   assert.equal(fs.readFileSync(path.join(dir, 'runs'), 'utf8').trim().split('\n').length, 1)
+})
+
+test('keep-running restarts a frozen child whose heartbeat stops, and logs it', async () => {
+  const script = '#!/bin/bash\nn=$(cat $DIR/n 2>/dev/null || echo 0); n=$((n+1)); echo $n > $DIR/n\ntouch $DIR/heartbeat\n[ "$n" -ge 2 ] && exit 0\nwhile true; do sleep 0.2; done\n'
+  const { dir, child } = runLoop(script, { HEARTBEAT_MAX_AGE_SECONDS: '1' })
+  assert.equal(await closed(child), 0)
+  assert.equal(fs.readFileSync(path.join(dir, 'n'), 'utf8').trim(), '2')
+  assert.deepEqual(parseCsv(fs.readFileSync(path.join(dir, 'restarts.csv'), 'utf8')).map((r) => r.exit_code), ['hung'])
+})
+
+test('keep-running leaves a healthy child alone', async () => {
+  const script = '#!/bin/bash\nfor i in 1 2 3 4 5 6 7 8; do touch $DIR/heartbeat; sleep 0.5; done\nexit 0\n'
+  const { dir, child } = runLoop(script, { HEARTBEAT_MAX_AGE_SECONDS: '2' })
+  assert.equal(await closed(child), 0)
+  assert.deepEqual(parseCsv(fs.readFileSync(path.join(dir, 'restarts.csv'), 'utf8')), [])
+})
+
+test('a second keep-running exits at once with a message, and a dead owner does not block', async () => {
+  const dir = tempDir()
+  const fake = path.join(dir, 'fake.sh')
+  fs.writeFileSync(fake, '#!/bin/bash\nwhile true; do sleep 0.1; done\n', { mode: 0o755 })
+  const env = { ...process.env, MEASUREMENTS_DIR: dir, KEEP_RUNNING_COMMAND: fake, RESTART_DELAY_SECONDS: '0' }
+  const first = spawn('bin/keep-running', [], { env, stdio: 'ignore' })
+  loops.push(first)
+  await new Promise((r) => setTimeout(r, 300))
+  const second = spawnSync('bin/keep-running', [], { env, encoding: 'utf8', timeout: 5000 })
+  assert.equal(second.status, 1)
+  assert.match(second.stderr, new RegExp(`Already running as process ${first.pid}`))
+  first.kill('SIGTERM')
+  await closed(first)
+  assert.equal(fs.existsSync(path.join(dir, 'keep-running.pid')), false, 'cleans up after itself')
+  fs.writeFileSync(path.join(dir, 'keep-running.pid'), '999999')
+  const third = spawn('bin/keep-running', [], { env, stdio: 'ignore' })
+  loops.push(third)
+  await new Promise((r) => setTimeout(r, 300))
+  assert.equal(third.exitCode, null, 'a dead owner must not block a new loop')
+  third.kill('SIGTERM')
+  await closed(third)
 })

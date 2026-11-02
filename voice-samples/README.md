@@ -2,7 +2,7 @@
 
 Researched 2026-10-31 using the ElevenLabs API (`GET /v1/shared-voices`, `/v1/voices`, `/v1/user/subscription`) and the public OpenAPI spec.
 
-## Chosen voice: Malyx (picked by Eugene)
+## Chosen voice: Malyx (picked by The owner)
 
 | Field | Value |
 |---|---|
@@ -28,7 +28,7 @@ Researched 2026-10-31 using the ElevenLabs API (`GET /v1/shared-voices`, `/v1/vo
 Original add call, for reference:
 
 ```bash
-KEY=$(grep '^ELEVENLABS_API_KEY=' /Users/eugeneleychenko/Downloads/Ring_Halloween/.env | cut -d= -f2-)
+KEY=$(grep '^ELEVENLABS_API_KEY=' ../.env | cut -d= -f2-)
 curl -s -X POST \
   -H "xi-api-key: $KEY" -H "Content-Type: application/json" \
   "https://api.elevenlabs.io/v1/voices/add/ad827f2c0300d36094ca79e518b1a5df8c3609eb269353c30dcec3ac8878a437/vfaqCOvlrKi4Zp7C2IAm" \
