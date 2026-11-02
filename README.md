@@ -1,65 +1,81 @@
 # Ring Halloween
 
-An AI greeter for a Ring doorbell. When a trick-or-treater walks up, the Ring camera takes a snapshot, Google Gemini writes a short, kind compliment about the costume, ElevenLabs speaks it in a demon voice, and the line plays on a Bluetooth speaker by the door. It ran unattended for a full Halloween night in 2026.
+**Your Ring doorbell compliments every trick-or-treater's costume, out loud, in a spooky voice.**
+
+A kid in a dinosaur costume walks up to your door. Your Ring camera sees them. A second later a deep demon voice from a speaker by the door says: *"Ooh, who's this?"* Then: *"A dinosaur! Those teeth could scare a whole street. Happy Halloween, mighty lizard."*
+
+Nobody needs to be home. It ran unattended for a full Halloween night in 2026 and greeted every visitor.
+
+## How it works, in one picture
 
 ```
-Ring motion event ─► snapshot ─► Gemini (comment or SKIP) ─► ElevenLabs TTS ─► Bluetooth speaker
-                      └─► "Ooh, who's this?" cover clip plays at once to hide the delay
+Someone walks up
+      │
+      ▼
+Ring doorbell notices motion ──► takes a photo
+      │                              │
+      ▼                              ▼
+Speaker says "Ooh, who's this?"   Google Gemini looks at the photo
+(instantly, to cover the wait)    and writes one kind line about the costume
+                                     │
+                                     ▼
+                                  ElevenLabs turns that line into speech
+                                     │
+                                     ▼
+                                  The speaker by your door says it
 ```
 
-## What is in this repo
+If Gemini sees nobody (a car, a cat, a leaf), it says nothing. If anything breaks, the speaker plays one of 26 pre-made compliments instead, so visitors always get something.
 
-| Path | What it is |
-|---|---|
-| [`ring-halloween/`](ring-halloween/) | The program. Node.js, runs on a Mac. **Start with its [README](ring-halloween/README.md).** |
-| [`docs/`](docs/) | The original brief ([`rfp.md`](docs/rfp.md)), the Bluetooth addendum, the feasibility assessment, and the character's [personality and canned lines](docs/personality.md) |
-| [`issues/`](issues/) | The build log: 14 numbered issues with acceptance criteria, measurements and validation notes |
-| [`research/`](research/) | Desk research on Ring audio, events and snapshots, Gemini and ElevenLabs, and failure modes |
-| [`voice-samples/`](voice-samples/) | How the voice was picked, with ElevenLabs preview clips of the finalists |
+## What you need
 
-## Quick start
+| | What | Why |
+|---|---|---|
+| 1 | **A Mac** (laptop is fine) that can sit plugged in near the door for the evening | It runs the program |
+| 2 | **A Ring video doorbell**, and your Ring login | It spots visitors and takes the photo |
+| 3 | **A Bluetooth speaker** | It is the voice. Put it outside, near the door |
+| 4 | **A Google account** | For a free Gemini AI key |
+| 5 | **An ElevenLabs account** ([elevenlabs.io](https://elevenlabs.io)) | For the voice. Free plan works; the deep demon voice needs a paid plan |
+| 6 | **The Claude app** ([claude.ai/download](https://claude.ai/download)) | Claude does the technical setup for you |
 
-You need a Mac, a Ring doorbell, a Bluetooth speaker, a Google Gemini API key and an ElevenLabs API key.
+Total cost for the evening, beyond what you already have: usually under a dollar in AI usage.
 
-```bash
-brew install node@24 ffmpeg blueutil switchaudio-osx
-cd ring-halloween
-npm install
-cp .env.example .env        # then fill in your keys and speaker name
-npm run simulate            # one pretend visitor, no network, no sound
-npm run auth                # sign in to Ring once, in Terminal.app
-npm run build-clips         # pre-generate the canned lines in your voice
-npm run check               # does everything look right?
-npm run night               # run all evening with a watchdog
-```
+## Set it up (no coding needed)
 
-The [app README](ring-halloween/README.md) explains each step, the settings, the Bluetooth speaker, and what to do when something sounds wrong.
+**Open [SETUP-PROMPT.md](SETUP-PROMPT.md), copy the prompt inside it, and paste it into Claude on your Mac.**
 
-## What you need to know before running it
+Claude will install what is needed, ask you for your keys one at a time, help you pick a voice, pair the speaker, sign you in to Ring, and do a dress rehearsal at your own door. It explains every step in plain language and waits for you when it needs something. Plan for about 30 to 45 minutes.
 
-**Ring access is unofficial.** The program uses [`ring-client-api`](https://github.com/dgreif/ring), which signs in with your Ring email, password and 2FA code and then keeps a refresh token in `ring-token.json`. Ring does not support this. It can break when Ring changes something, and heavy use could in principle attract attention to your account. Node 24 is required: Node 26 breaks Ring sign-in as of October 2026.
+If you would rather do it by hand, the step-by-step instructions are in [ring-halloween/README.md](ring-halloween/README.md).
 
-**Door photos leave your Mac only to go to Gemini.** On Google's free tier, Google staff may review what you send. Photos from a doorstep on Halloween include children. The program therefore refuses to send snapshots until you set `GEMINI_BILLING_CONFIRMED=true`, which you should do only after checking in Google AI Studio that your key's project is on a paid plan. Until then every visitor gets a stock compliment.
+## On the night
 
-**The character is deliberately constrained.** Gemini is told to compliment costumes only, never bodies, age, race or appearance, never to guess who someone is, and to return SKIP when nobody is there. A local deny-list filters the output before it is spoken. See [`docs/personality.md`](docs/personality.md) and [`ring-halloween/config/denylist.txt`](ring-halloween/config/denylist.txt). Keep those constraints if you fork this.
+1. Plug the Mac in. Charge the speaker and put it by the door.
+2. Open the Terminal app and run the two lines Claude gave you (they end with `npm run night`).
+3. Leave. It restarts itself if anything goes wrong.
+4. Afterwards, the `measurements` folder has a log of every visitor: when they came, what the camera saw, and what the voice said.
 
-**Costs.** Gemini Flash-Lite calls cost fractions of a cent. ElevenLabs library voices like the default one bill at a multiplier, and need a paid plan. Repeated lines are cached as clips so they cost nothing the second time.
+## Three things worth knowing
 
-## Privacy and secrets
+**Children's photos and Google.** On Google's free tier, Google staff may look at photos you send to Gemini. Doorstep photos on Halloween are full of kids. So this program will **not** send any photo to Gemini until you confirm your Google key is on a paid plan (costs are tiny). Until then it works in a simpler mode: every visitor gets a random pre-made compliment and no photo ever leaves your Mac. Both modes are fine. You choose.
 
-Nothing private is in this repo, and the `.gitignore` keeps it that way:
+**It is kind on purpose.** The AI is told to compliment costumes only. Never bodies, weight, age, race or looks. Never guess who someone is. A word filter double-checks every line before it is spoken. Please keep that if you change it.
 
-- `.env` holds your API keys and speaker address. Only `.env.example` is committed.
-- `ring-token.json` is your Ring session. Treat it like a password.
-- `snapshots/` holds photos of real people at your door. `measurements/` holds CSV logs of what was seen and said. `clips/` is generated audio. All three stay local.
+**Ring does not officially allow this.** The program signs in to Ring the way the Ring app does, using a well-known open-source library. Ring could change something and break it, though it has worked for years. Your Ring password is typed once, in the Terminal app, where no program can read it, and is never saved.
 
-If you share logs or screenshots from your run, check them for faces and for your Ring device IDs first.
+## Privacy
 
-## Status and scope
+Everything stays on your Mac: your keys, your Ring session, the photos, and the logs. Nothing is uploaded except the one photo per visitor that goes to Gemini (and only if you turned that on). This repository contains no keys and no photos, and it is set up so you cannot accidentally publish yours.
 
-This is a working prototype built in a few days for one house, one doorbell and one speaker. It is not a product. The doorbell's own speaker was tested and works through Ring's two-way talk, but it was quiet and crackly on the test hardware, so the Bluetooth speaker is the default and the doorbell route is kept as an option (`OUTPUT=doorbell` or `both`).
+## For developers
 
-Things that would make it better are listed at the end of each issue file. Pull requests are welcome. Run `npm test` in `ring-halloween/` before opening one; the tests use temp directories and never touch your real logs or token.
+- [`ring-halloween/`](ring-halloween/) is the program: Node 24, plain JavaScript, no framework. Its [README](ring-halloween/README.md) covers every command and setting.
+- [`docs/`](docs/) has the original brief, the Bluetooth addendum, the feasibility assessment, and the character's [personality and canned lines](docs/personality.md).
+- [`issues/`](issues/) is the build log: 14 issues with acceptance criteria, measurements and validation notes.
+- [`research/`](research/) is the desk research on Ring audio, events and snapshots, Gemini and ElevenLabs.
+- [`voice-samples/`](voice-samples/) explains how the voice was chosen.
+
+The doorbell's own speaker works through Ring's two-way talk (`OUTPUT=doorbell` or `both`) but was quiet and crackly on the test hardware, so Bluetooth is the default. Run `npm test` before a pull request; the tests use temp folders and never touch real logs or tokens.
 
 ## License
 
